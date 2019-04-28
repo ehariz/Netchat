@@ -5,6 +5,7 @@ authors = ["efugier <mail@emilienfugier.net>"]
 edition = "2018"
 
 [dependencies]
+structopt = "0.2"
 color-backtrace = "0.1"
 unicode-width = "0.1.5"
 termion = {version = "1.5", optional = true }

@@ -1,8 +1,3 @@
-/// A simple example demonstrating how to handle user input. This is
-/// a bit out of the scope of the library as it does not provide any
-/// input handling out of the box. However, it may helps some to get
-/// started.
-///
 /// This is a very simple example:
 ///   * A input box always focused. Every character you type is registered
 ///   here
@@ -27,6 +22,22 @@ use unicode_width::UnicodeWidthStr;
 
 use utils::event::{Event, Events};
 
+use std::path::PathBuf;
+use structopt::StructOpt;
+
+/// Command line arguments
+#[derive(StructOpt, Debug)]
+#[structopt(name = "args")]
+struct Opt {
+    /// Input file
+    #[structopt(short = "i", long = "input", parse(from_os_str))]
+    input: PathBuf,
+
+    /// Output file
+    #[structopt(short = "o", long = "output", parse(from_os_str))]
+    output: PathBuf,
+}
+
 /// App holds the state of the application
 struct App {
     /// Current value of the input box
@@ -47,12 +58,14 @@ impl Default for App {
 fn main() {
     color_backtrace::install();
 
-    if let Err(e) = run() {
+    let opt = Opt::from_args();
+
+    if let Err(e) = run(opt) {
         eprintln!("{}", e);
     }
 }
 
-fn run() -> Result<(), Box<dyn std::error::Error>> {
+fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
     // Terminal initialization
     let stdout = io::stdout().into_raw_mode()?;
     let stdout = MouseTerminal::from(stdout);
@@ -66,6 +79,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     // Create default app state
     let mut app = App::default();
 
+    app.messages.push(format!("{:?}", opt));
+
     loop {
         // Draw UI
         terminal.draw(|mut f| {
@@ -75,7 +90,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 .constraints([Constraint::Length(3), Constraint::Min(1)].as_ref())
                 .split(f.size());
             Paragraph::new([Text::raw(&app.input)].iter())
-                .style(Style::default().fg(Color::Yellow))
+                .style(Style::default().fg(Color::Cyan))
                 .block(Block::default().borders(Borders::ALL).title("Input"))
                 .render(&mut f, chunks[0]);
             let messages = app
