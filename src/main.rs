@@ -45,6 +45,8 @@ impl Default for App {
 }
 
 fn main() {
+    color_backtrace::install();
+
     if let Err(e) = run() {
         eprintln!("{}", e);
     }
