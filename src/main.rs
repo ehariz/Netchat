@@ -112,23 +112,21 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
 
         // Handle input
         match events.next()? {
-            Event::Input(input) => {
-                match input {
-                    Key::Ctrl('c') => {
-                        break;
-                    }
-                    Key::Char('\n') => {
-                        app.messages.push(app.input.drain(..).collect());
-                    }
-                    Key::Char(c) => {
-                        app.input.push(c);
-                    }
-                    Key::Backspace => {
-                        app.input.pop();
-                    }
-                    _ => {}
+            Event::Input(input) => match input {
+                Key::Ctrl('c') => {
+                    break;
                 }
-            }
+                Key::Char('\n') => {
+                    app.messages.push(app.input.drain(..).collect());
+                }
+                Key::Char(c) => {
+                    app.input.push(c);
+                }
+                Key::Backspace => {
+                    app.input.pop();
+                }
+                _ => {}
+            },
             _ => {}
         }
     }
