@@ -1,30 +1,25 @@
-/// This is a very simple example:
-///   * A input box always focused. Every character you type is registered
-///   here
-///   * Pressing Backspace erases a character
-///   * Pressing Enter pushes the current input in the history of previous
-///   messages
-mod utils;
-
-use std::io::{self, Write};
 use std::fs::OpenOptions;
+use std::io::{self, Write};
+use std::path::PathBuf;
+
+use unicode_width::UnicodeWidthStr;
 
 use termion::cursor::Goto;
 use termion::event::Key;
 use termion::input::MouseTerminal;
 use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
+
 use tui::backend::TermionBackend;
 use tui::layout::{Constraint, Direction, Layout};
 use tui::style::{Color, Style};
 use tui::widgets::{Block, Borders, List, Paragraph, Text, Widget};
 use tui::Terminal;
-use unicode_width::UnicodeWidthStr;
 
-use utils::event::{Event, Events};
-
-use std::path::PathBuf;
 use structopt::StructOpt;
+
+mod utils;
+use utils::events::{Event, Events};
 
 /// Command line arguments
 #[derive(StructOpt, Debug)]
@@ -67,21 +62,27 @@ fn main() {
 }
 
 fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
+    // Order matter !
+
+    // 1 Setup event handlers
+    let events = Events::new(opt.input.to_owned());
+
+    println!("Waiting for others to connect");
+
+    // 2 Open the output pipe,
+    // the program will freeze until there is someone at the other end
+    let mut output_file = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open(opt.output.to_owned())
+        .unwrap();
+
     // Terminal initialization
     let stdout = io::stdout().into_raw_mode()?;
     let stdout = MouseTerminal::from(stdout);
     let stdout = AlternateScreen::from(stdout);
     let backend = TermionBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-    let mut output_file = OpenOptions::new()
-        .write(true)
-        .append(true)
-        .open(&opt.output)
-        .unwrap();
-    //let mut output = File::open(&output_str).expect("Output file not found");
-
-    // Setup event handlers
-    let events = Events::new();
 
     // Create default app state
     let mut app = App::default();
@@ -117,15 +118,17 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
             Goto(4 + app.input.width() as u16, 4)
         )?;
 
-        // Handle input
+        // Handle events
         match events.next()? {
-            Event::Input(input) =>  match input {
+            // Input from the user
+            Event::UserInput(input) => match input {
                 Key::Ctrl('c') => {
                     break;
                 }
                 Key::Char('\n') => {
-                    output_file.write_all(format!("{}\n", app.input)
-                                          .as_bytes()).expect("Failed to write to output file"); 
+                    output_file
+                        .write_all(format!("{}\n", app.input).as_bytes())
+                        .expect("Failed to write to output file");
                     app.messages.push(app.input.drain(..).collect());
                 }
                 Key::Char(c) => {
@@ -136,6 +139,8 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
                 }
                 _ => {}
             },
+            // Input from a distant app
+            Event::DistantInput(msg) => app.messages.push(msg),
             _ => {}
         }
     }

@@ -1,2 +1,2 @@
 #[cfg(feature = "termion")]
-pub mod event;
+pub mod events;
