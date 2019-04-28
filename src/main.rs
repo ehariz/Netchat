@@ -7,6 +7,7 @@
 mod utils;
 
 use std::io::{self, Write};
+use std::fs::OpenOptions;
 
 use termion::cursor::Goto;
 use termion::event::Key;
@@ -72,6 +73,12 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
     let stdout = AlternateScreen::from(stdout);
     let backend = TermionBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
+    let mut output_file = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open(&opt.output)
+        .unwrap();
+    //let mut output = File::open(&output_str).expect("Output file not found");
 
     // Setup event handlers
     let events = Events::new();
@@ -112,11 +119,13 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
 
         // Handle input
         match events.next()? {
-            Event::Input(input) => match input {
+            Event::Input(input) =>  match input {
                 Key::Ctrl('c') => {
                     break;
                 }
                 Key::Char('\n') => {
+                    output_file.write_all(format!("{}\n", app.input)
+                                          .as_bytes()).expect("Failed to write to output file"); 
                     app.messages.push(app.input.drain(..).collect());
                 }
                 Key::Char(c) => {
