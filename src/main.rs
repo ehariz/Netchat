@@ -16,6 +16,8 @@ use tui::style::{Color, Style};
 use tui::widgets::{Block, Borders, List, Paragraph, Text, Widget};
 use tui::Terminal;
 
+use log::*;
+
 use structopt::StructOpt;
 
 mod utils;
@@ -53,6 +55,7 @@ impl Default for App {
 
 fn main() {
     color_backtrace::install();
+    env_logger::init();
 
     let opt = Opt::from_args();
 
@@ -126,6 +129,7 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
                     break;
                 }
                 Key::Char('\n') => {
+                    info!("messsage: {}", app.input);
                     output_file
                         .write_all(format!("{}\n", app.input).as_bytes())
                         .expect("Failed to write to output file");

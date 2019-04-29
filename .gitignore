@@ -1,2 +1,5 @@
+/err
+/fifo
+/cargo_run.sh
 /target
 **/*.rs.bk

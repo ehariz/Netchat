@@ -51,6 +51,7 @@ impl Events {
     pub fn with_config(input_file: PathBuf, config: Config) -> Events {
         let (tx, rx) = mpsc::channel();
 
+        // listen to stdin for user events
         let _input_handle = {
             let tx = tx.clone();
             thread::spawn(move || {
@@ -71,6 +72,7 @@ impl Events {
             })
         };
 
+        // listen to a file for distant events
         let _input_file_handle = {
             let tx = tx.clone();
             thread::spawn(move || {
@@ -88,11 +90,9 @@ impl Events {
 
         let _tick_handle = {
             let tx = tx.clone();
-            thread::spawn(move || {
-                loop {
-                    tx.send(Event::Tick).unwrap();
-                    thread::sleep(config.tick_rate);
-                }
+            thread::spawn(move || loop {
+                tx.send(Event::Tick).unwrap();
+                thread::sleep(config.tick_rate);
             })
         };
 
