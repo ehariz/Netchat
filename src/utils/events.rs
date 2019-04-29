@@ -74,8 +74,6 @@ impl Events {
         let _input_file_handle = {
             let tx = tx.clone();
             thread::spawn(move || {
-                let tx = tx.clone();
-
                 let input_file = File::open(input_file).expect("Could not open input file");
                 let reader = BufReader::new(input_file);
 
@@ -91,7 +89,6 @@ impl Events {
         let _tick_handle = {
             let tx = tx.clone();
             thread::spawn(move || {
-                let tx = tx.clone();
                 loop {
                     tx.send(Event::Tick).unwrap();
                     thread::sleep(config.tick_rate);
