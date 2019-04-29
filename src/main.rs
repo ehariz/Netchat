@@ -22,6 +22,7 @@ use structopt::StructOpt;
 
 mod utils;
 use utils::events::{Event, Events};
+use utils::messages::{Header, Msg};
 
 /// Command line arguments
 #[derive(StructOpt, Debug)]
@@ -107,8 +108,9 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
             let messages = app
                 .messages
                 .iter()
+                .rev()
                 .enumerate()
-                .map(|(i, m)| Text::raw(format!("{}: {}", i, m)));
+                .map(|(_, m)| Text::raw(format!("{}", m)));
             List::new(messages)
                 .block(Block::default().borders(Borders::ALL).title("Messages"))
                 .render(&mut f, chunks[1]);
@@ -130,10 +132,14 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
                 }
                 Key::Char('\n') => {
                     info!("messsage: {}", app.input);
-                    output_file
-                        .write_all(format!("{}\n", app.input).as_bytes())
-                        .expect("Failed to write to output file");
-                    app.messages.push(app.input.drain(..).collect());
+                    if let Ok(msg) = Msg::new(1, Header::Public, app.input.to_owned()).serialize() {
+                        output_file
+                            .write_all(format!("{}\n", msg).as_bytes())
+                            .expect("Failed to write to output file");
+                        app.messages.push(app.input.drain(..).collect());
+                    } else {
+                        error!("Could not serialize `{}`", app.input);
+                    }
                 }
                 Key::Char(c) => {
                     app.input.push(c);
@@ -144,7 +150,13 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
                 _ => {}
             },
             // Input from a distant app
-            Event::DistantInput(msg) => app.messages.push(msg),
+            Event::DistantInput(msg) => {
+                if let Ok(msg) = Msg::from_str(&msg) {
+                    app.messages.push(msg.content);
+                } else {
+                    error!("Could not decode `{}` as a Msg", msg);
+                }
+            }
             _ => {}
         }
     }
