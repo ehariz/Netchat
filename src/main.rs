@@ -16,7 +16,7 @@ use tui::style::{Color, Style};
 use tui::widgets::{Block, Borders, List, Paragraph, Text, Widget};
 use tui::Terminal;
 
-use log::*;
+use log;
 
 use structopt::StructOpt;
 
@@ -131,14 +131,14 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
                     break;
                 }
                 Key::Char('\n') => {
-                    info!("messsage: {}", app.input);
+                    log::info!("messsage: {}", app.input);
                     if let Ok(msg) = Msg::new(1, Header::Public, app.input.to_owned()).serialize() {
                         output_file
                             .write_all(format!("{}\n", msg).as_bytes())
                             .expect("Failed to write to output file");
                         app.messages.push(app.input.drain(..).collect());
                     } else {
-                        error!("Could not serialize `{}`", app.input);
+                        log::error!("Could not serialize `{}`", app.input);
                     }
                 }
                 Key::Char(c) => {
@@ -154,7 +154,7 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
                 if let Ok(msg) = Msg::from_str(&msg) {
                     app.messages.push(msg.content);
                 } else {
-                    error!("Could not decode `{}` as a Msg", msg);
+                    log::error!("Could not decode `{}` as a Msg", msg);
                 }
             }
             _ => {}
