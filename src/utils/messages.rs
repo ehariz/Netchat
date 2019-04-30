@@ -1,11 +1,13 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 type MsgId = u64;
-type UserId = u64;
+pub type AppId = String;
+pub type Date = u64;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub enum Header {
-    Private(UserId),
+    Private(AppId),
     Public,
 }
 
@@ -14,14 +16,16 @@ pub struct Msg {
     pub id: MsgId,
     pub header: Header,
     pub content: String,
+    pub clock : HashMap<AppId,Date>,
 }
 
 impl Msg {
-    pub fn new(id: MsgId, header: Header, content: String) -> Self {
+    pub fn new(id: MsgId, header: Header, content: String, clock : HashMap<AppId,Date>) -> Self {
         Msg {
             id,
             header,
             content,
+            clock,
         }
     }
     pub fn serialize(&self) -> serde_json::Result<String> {
@@ -41,11 +45,11 @@ mod tests {
     fn message_serde() {
         let msg = Msg {
             id: 1,
-            header: Header::Private(42),
+            header: Header::Private("42".to_string()),
             content: "I like trains !".to_string(),
+            clock: [("1".to_string(),2),("3".to_string(),4)].iter().cloned().collect(),
         };
 
-        // Convert the Msg to a JSON string.
         let serialized = msg.serialize().unwrap();
 
         println!("serialized = {}", serialized);

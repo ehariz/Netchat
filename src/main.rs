@@ -1,6 +1,10 @@
+extern crate rand;
+
 use std::fs::OpenOptions;
 use std::io::{self, Write};
 use std::path::PathBuf;
+use std::collections::HashMap;
+use std::iter;
 
 use unicode_width::UnicodeWidthStr;
 
@@ -20,9 +24,12 @@ use log;
 
 use structopt::StructOpt;
 
+use rand::{Rng, thread_rng};
+use rand::distributions::Alphanumeric;
+
 mod utils;
 use utils::events::{Event, Events};
-use utils::messages::{Header, Msg};
+use utils::messages::{AppId, Date, Header, Msg};
 
 /// Command line arguments
 #[derive(StructOpt, Debug)]
@@ -35,21 +42,46 @@ struct Opt {
     /// Output file
     #[structopt(short = "o", long = "output", parse(from_os_str))]
     output: PathBuf,
+
+    //Application Identifier
+    #[structopt(short = "n", long = "name")]
+    id: Option<String>,
 }
 
 /// App holds the state of the application
 struct App {
+    //Application id
+    id : AppId,
     /// Current value of the input box
     input: String,
     /// History of recorded messages
     messages: Vec<String>,
+    //Vector clock
+    clock : HashMap<AppId,Date>,
+}
+
+impl App {
+    fn update_clock(&mut self, clock : HashMap<AppId,Date>) {
+        for(id, date) in &clock {
+            let local_date = self.clock.get(id);
+            if local_date.is_none() || local_date.unwrap() < date {
+                self.clock.insert(id.clone(),date.clone());
+            }
+        }
+    }
 }
 
 impl Default for App {
     fn default() -> App {
+        let mut rng = thread_rng();
         App {
+            id : iter::repeat(())
+                .map(|()| rng.sample(Alphanumeric))
+                .take(8)
+                .collect(),
             input: String::new(),
             messages: Vec::new(),
+            clock: HashMap::new(),
         }
     }
 }
@@ -91,7 +123,11 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
     // Create default app state
     let mut app = App::default();
 
-    app.messages.push(format!("{:?}", opt));
+    if let Some(id) = opt.id.to_owned() {
+        app.id = id;
+    }
+
+    app.messages.push(format!("input : {:?}, output : {:?}, id : {}", opt.input, opt.output, app.id));
 
     loop {
         // Draw UI
@@ -130,9 +166,17 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
                 Key::Ctrl('c') => {
                     break;
                 }
+                Key::Ctrl('h') => {
+                    for (id, date) in &app.clock {
+                        app.messages.push(format!("App {} date: {}",id.to_owned(),date.to_owned()));
+                    }
+                }
                 Key::Char('\n') => {
+                    let date = app.clock.entry(app.id.to_owned()).or_insert(0);
+                    *date += 1;
                     log::info!("messsage: {}", app.input);
-                    if let Ok(msg) = Msg::new(1, Header::Public, app.input.to_owned()).serialize() {
+                    log::info!("local date: {}", app.clock.get(&app.id).expect("Missing local AppId !"));
+                    if let Ok(msg) = Msg::new(1, Header::Public, app.input.to_owned(), app.clock.to_owned()).serialize() {
                         output_file
                             .write_all(format!("{}\n", msg).as_bytes())
                             .expect("Failed to write to output file");
@@ -153,6 +197,7 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
             Event::DistantInput(msg) => {
                 if let Ok(msg) = Msg::from_str(&msg) {
                     app.messages.push(msg.content);
+		            app.update_clock(msg.clock);
                 } else {
                     log::error!("Could not decode `{}` as a Msg", msg);
                 }
