@@ -1,8 +1,4 @@
-use std::fs::File;
 use std::io;
-// BufRead : WHY ????
-use std::io::{BufRead, BufReader};
-use std::path::PathBuf;
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
@@ -10,21 +6,26 @@ use std::time::Duration;
 use termion::event::Key;
 use termion::input::TermRead;
 
+use crate::server::messages::Msg;
+use crate::server::Clock;
+
 pub enum Event {
     /// User input (keypress)
     UserInput(Key),
     /// Input from a distant agent (write in a file)
-    DistantInput(String),
+    DistantMessage(Msg),
     /// Periodically send tick a to refresh the UI
     Tick,
+    /// Clock for display
+    Clock(Clock),
 }
 
 /// A small event handler that wrap termion input and tick events. Each event
 /// type is handled in its own thread and returned to a common `Receiver`
 pub struct Events {
     rx: mpsc::Receiver<Event>,
+    _server_handle: thread::JoinHandle<()>,
     _input_handle: thread::JoinHandle<()>,
-    _input_file_handle: thread::JoinHandle<()>,
     _tick_handle: thread::JoinHandle<()>,
 }
 
@@ -44,12 +45,28 @@ impl Default for Config {
 }
 
 impl Events {
-    pub fn new(input_file: PathBuf) -> Events {
-        Events::with_config(input_file, Config::default())
+    pub fn new(server_rx: mpsc::Receiver<Event>) -> Events {
+        Events::with_config(server_rx, Config::default())
     }
 
-    pub fn with_config(input_file: PathBuf, config: Config) -> Events {
+    pub fn with_config(server_rx: mpsc::Receiver<Event>, config: Config) -> Events {
         let (tx, rx) = mpsc::channel();
+
+        // listen to the server
+        let _server_handle = {
+            let tx = tx.clone();
+            thread::spawn(move || loop {
+                match server_rx.recv() {
+                    Ok(event) => {
+                        // Forward app events
+                        tx.send(event).unwrap();
+                    }
+                    Err(e) => {
+                        log::error!("Failed to receive a server message: {}", e);
+                    }
+                }
+            })
+        };
 
         // listen to stdin for user events
         let _input_handle = {
@@ -72,22 +89,6 @@ impl Events {
             })
         };
 
-        // listen to a file for distant events
-        let _input_file_handle = {
-            let tx = tx.clone();
-            thread::spawn(move || {
-                let input_file = File::open(input_file).expect("Could not open input file");
-                let reader = BufReader::new(input_file);
-
-                reader.lines().for_each(|line| {
-                    tx.send(Event::DistantInput(
-                        line.expect("Could not read from input file"),
-                    ))
-                    .unwrap();
-                })
-            })
-        };
-
         let _tick_handle = {
             let tx = tx.clone();
             thread::spawn(move || loop {
@@ -100,7 +101,7 @@ impl Events {
             rx,
             _input_handle,
             _tick_handle,
-            _input_file_handle,
+            _server_handle,
         }
     }
 

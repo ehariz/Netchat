@@ -1,8 +1,9 @@
+use crate::app::AppId;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
-type MsgId = u64;
-pub type AppId = String;
+use super::Clock;
+
+pub type MsgId = u64;
 pub type Date = u64;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -16,11 +17,11 @@ pub struct Msg {
     pub id: MsgId,
     pub header: Header,
     pub content: String,
-    pub clock: HashMap<AppId, Date>,
+    pub clock: Clock,
 }
 
 impl Msg {
-    pub fn new(id: MsgId, header: Header, content: String, clock: HashMap<AppId, Date>) -> Self {
+    pub fn new(id: MsgId, header: Header, content: String, clock: Clock) -> Self {
         Msg {
             id,
             header,
@@ -47,10 +48,12 @@ mod tests {
             id: 1,
             header: Header::Private("42".to_string()),
             content: "I like trains !".to_string(),
-            clock: [("1".to_string(), 2), ("3".to_string(), 4)]
-                .iter()
-                .cloned()
-                .collect(),
+            clock: Clock(
+                [("1".to_string(), 2), ("3".to_string(), 4)]
+                    .iter()
+                    .cloned()
+                    .collect(),
+            ),
         };
 
         let serialized = msg.serialize().expect("failed to serialize");

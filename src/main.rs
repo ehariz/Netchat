@@ -1,40 +1,23 @@
 extern crate rand;
 
-use std::collections::HashMap;
-use std::fs::OpenOptions;
-use std::io::{self, Write};
-use std::iter;
 use std::path::PathBuf;
-
-use unicode_width::UnicodeWidthStr;
-
-use termion::cursor::Goto;
-use termion::event::Key;
-use termion::input::MouseTerminal;
-use termion::raw::IntoRawMode;
-use termion::screen::AlternateScreen;
-
-use tui::backend::TermionBackend;
-use tui::layout::{Constraint, Direction, Layout};
-use tui::style::{Color, Style};
-use tui::widgets::{Block, Borders, List, Paragraph, Text, Widget};
-use tui::Terminal;
+use std::sync::mpsc;
+use std::thread;
 
 use log;
 
 use structopt::StructOpt;
 
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
+mod server;
+use server::Server;
 
-mod utils;
-use utils::events::{Event, Events};
-use utils::messages::{AppId, Date, Header, Msg};
+mod app;
+use app::App;
 
 /// Command line arguments
 #[derive(StructOpt, Debug)]
 #[structopt(name = "args")]
-struct Opt {
+pub struct Opt {
     /// Input file
     #[structopt(short = "i", long = "input", parse(from_os_str))]
     input: PathBuf,
@@ -48,80 +31,14 @@ struct Opt {
     id: Option<String>,
 }
 
-/// App holds the state of the application
-struct App {
-    //Application id
-    id: AppId,
-    /// Current value of the input box
-    input: String,
-    /// History of recorded messages
-    messages: Vec<String>,
-    //Vector clock
-    clock: HashMap<AppId, Date>,
-}
-
-impl App {
-    fn update_clock(&mut self, clock: &HashMap<AppId, Date>) {
-        for (id, date) in clock {
-            match self.clock.get(id) {
-                // Do not update the clock if it contains a more recent date
-                Some(local_date) if local_date >= date => {}
-                _ => {
-                    self.clock.insert(id.to_owned(), date.to_owned());
-                }
-            }
-        }
-    }
-}
-
-impl Default for App {
-    fn default() -> App {
-        let mut rng = thread_rng();
-        App {
-            id: iter::repeat(())
-                .map(|()| rng.sample(Alphanumeric))
-                .take(8)
-                .collect(),
-            input: String::new(),
-            messages: Vec::new(),
-            clock: HashMap::new(),
-        }
-    }
-}
-
 fn main() {
     color_backtrace::install();
     env_logger::init();
 
     let opt = Opt::from_args();
 
-    if let Err(e) = run(opt) {
-        eprintln!("{}", e);
-    }
-}
-
-fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
-    // Order matter !
-
-    // 1 Setup event handlers
-    let events = Events::new(opt.input.to_owned());
-
-    println!("Waiting for others to connect");
-
-    // 2 Open the output pipe,
-    // the program will freeze until there is someone at the other end
-    let mut output_file = OpenOptions::new()
-        .write(true)
-        .append(true)
-        .open(opt.output.to_owned())
-        .expect("failed to open output file");
-
-    // Terminal initialization
-    let stdout = io::stdout().into_raw_mode()?;
-    let stdout = MouseTerminal::from(stdout);
-    let stdout = AlternateScreen::from(stdout);
-    let backend = TermionBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
+    let (app_tx, server_rx) = mpsc::channel(); // server -> app
+    let (server_tx, app_rx) = mpsc::channel(); // app    -> server
 
     // Create default app state
     let mut app = App::default();
@@ -135,90 +52,16 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
         opt.input, opt.output, app.id
     ));
 
-    loop {
-        // Draw UI
-        terminal.draw(|mut f| {
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .margin(2)
-                .constraints([Constraint::Length(3), Constraint::Min(1)].as_ref())
-                .split(f.size());
-            Paragraph::new([Text::raw(&app.input)].iter())
-                .style(Style::default().fg(Color::Cyan))
-                .block(Block::default().borders(Borders::ALL).title("Input"))
-                .render(&mut f, chunks[0]);
-            let messages = app
-                .messages
-                .iter()
-                .rev()
-                .enumerate()
-                .map(|(_, m)| Text::raw(format!("{}", m)));
-            List::new(messages)
-                .block(Block::default().borders(Borders::ALL).title("Messages"))
-                .render(&mut f, chunks[1]);
-        })?;
+    let server = Server::new(app.id.to_owned());
 
-        // Put the cursor back inside the input box
-        write!(
-            terminal.backend_mut(),
-            "{}",
-            Goto(4 + app.input.width() as u16, 4)
-        )?;
 
-        // Handle events
-        match events.next()? {
-            // Input from the user
-            Event::UserInput(input) => match input {
-                Key::Ctrl('c') => {
-                    break;
-                }
-                Key::Ctrl('h') => {
-                    for (id, date) in &app.clock {
-                        app.messages.push(format!("App {} date: {}", id, date));
-                    }
-                }
-                Key::Char('\n') => {
-                    let date = app.clock.entry(app.id.to_owned()).or_insert(0);
-                    *date += 1;
-                    log::info!(
-                        "local date: {}, messsage: {}",
-                        app.clock.get(&app.id).expect("Missing local AppId !"),
-                        app.input
-                    );
-
-                    let msg = Msg::new(1, Header::Public, app.input.clone(), app.clock.clone());
-                    if let Ok(msg) = msg.serialize() {
-                        output_file
-                            .write_all(format!("{}\n", msg).as_bytes())
-                            .expect("Failed to write to output file");
-                        app.messages.push(app.input.drain(..).collect());
-                    } else {
-                        app.messages.push("Could not send this message".to_owned());
-                        log::error!("Could not serialize `{}`", app.input);
-                    }
-                }
-                Key::Char(c) => {
-                    app.input.push(c);
-                }
-                Key::Backspace => {
-                    app.input.pop();
-                }
-                _ => {}
-            },
-            // Input from a distant app
-            Event::DistantInput(msg) => {
-                if let Ok(msg) = Msg::from_str(&msg) {
-                    let date = app.clock.entry(app.id.to_owned()).or_insert(0);
-                    *date += 1;
-                    app.messages.push(msg.content);
-                    app.update_clock(&msg.clock);
-                } else {
-                    log::error!("Could not decode `{}` as a Msg", msg);
-                }
-            }
-            _ => {}
+    thread::spawn(move || {
+        if let Err(e) = server::run(server, app_rx, app_tx, opt) {
+            log::error!("{}", e);
         }
-    }
+    });
 
-    Ok(())
+    if let Err(e) = app::run(app, server_rx, server_tx) {
+        log::error!("{}", e);
+    };
 }
