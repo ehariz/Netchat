@@ -16,11 +16,11 @@ pub struct Msg {
     pub id: MsgId,
     pub header: Header,
     pub content: String,
-    pub clock : HashMap<AppId,Date>,
+    pub clock: HashMap<AppId, Date>,
 }
 
 impl Msg {
-    pub fn new(id: MsgId, header: Header, content: String, clock : HashMap<AppId,Date>) -> Self {
+    pub fn new(id: MsgId, header: Header, content: String, clock: HashMap<AppId, Date>) -> Self {
         Msg {
             id,
             header,
@@ -47,15 +47,17 @@ mod tests {
             id: 1,
             header: Header::Private("42".to_string()),
             content: "I like trains !".to_string(),
-            clock: [("1".to_string(),2),("3".to_string(),4)].iter().cloned().collect(),
+            clock: [("1".to_string(), 2), ("3".to_string(), 4)]
+                .iter()
+                .cloned()
+                .collect(),
         };
 
-        let serialized = msg.serialize().unwrap();
-
+        let serialized = msg.serialize().expect("failed to serialize");
         println!("serialized = {}", serialized);
 
         // Convert the JSON string back to a Msg.
-        let deserialized = Msg::from_str(&serialized).unwrap();
+        let deserialized = Msg::from_str(&serialized).expect("failed to deserialize");
 
         println!("deserialized = {:?}", deserialized);
 

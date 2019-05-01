@@ -1,10 +1,10 @@
 extern crate rand;
 
+use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::{self, Write};
-use std::path::PathBuf;
-use std::collections::HashMap;
 use std::iter;
+use std::path::PathBuf;
 
 use unicode_width::UnicodeWidthStr;
 
@@ -24,8 +24,8 @@ use log;
 
 use structopt::StructOpt;
 
-use rand::{Rng, thread_rng};
 use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
 
 mod utils;
 use utils::events::{Event, Events};
@@ -51,21 +51,24 @@ struct Opt {
 /// App holds the state of the application
 struct App {
     //Application id
-    id : AppId,
+    id: AppId,
     /// Current value of the input box
     input: String,
     /// History of recorded messages
     messages: Vec<String>,
     //Vector clock
-    clock : HashMap<AppId,Date>,
+    clock: HashMap<AppId, Date>,
 }
 
 impl App {
-    fn update_clock(&mut self, clock : HashMap<AppId,Date>) {
-        for(id, date) in &clock {
-            let local_date = self.clock.get(id);
-            if local_date.is_none() || local_date.unwrap() < date {
-                self.clock.insert(id.clone(),date.clone());
+    fn update_clock(&mut self, clock: &HashMap<AppId, Date>) {
+        for (id, date) in clock {
+            match self.clock.get(id) {
+                // Do not update the clock if it contains a more recent date
+                Some(local_date) if local_date >= date => {}
+                _ => {
+                    self.clock.insert(id.to_owned(), date.to_owned());
+                }
             }
         }
     }
@@ -75,7 +78,7 @@ impl Default for App {
     fn default() -> App {
         let mut rng = thread_rng();
         App {
-            id : iter::repeat(())
+            id: iter::repeat(())
                 .map(|()| rng.sample(Alphanumeric))
                 .take(8)
                 .collect(),
@@ -111,7 +114,7 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
         .write(true)
         .append(true)
         .open(opt.output.to_owned())
-        .unwrap();
+        .expect("failed to open output file");
 
     // Terminal initialization
     let stdout = io::stdout().into_raw_mode()?;
@@ -127,7 +130,10 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
         app.id = id;
     }
 
-    app.messages.push(format!("input : {:?}, output : {:?}, id : {}", opt.input, opt.output, app.id));
+    app.messages.push(format!(
+        "input : {:?}, output : {:?}, id : {}",
+        opt.input, opt.output, app.id
+    ));
 
     loop {
         // Draw UI
@@ -168,20 +174,26 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
                 }
                 Key::Ctrl('h') => {
                     for (id, date) in &app.clock {
-                        app.messages.push(format!("App {} date: {}",id.to_owned(),date.to_owned()));
+                        app.messages.push(format!("App {} date: {}", id, date));
                     }
                 }
                 Key::Char('\n') => {
                     let date = app.clock.entry(app.id.to_owned()).or_insert(0);
                     *date += 1;
-                    log::info!("messsage: {}", app.input);
-                    log::info!("local date: {}", app.clock.get(&app.id).expect("Missing local AppId !"));
-                    if let Ok(msg) = Msg::new(1, Header::Public, app.input.to_owned(), app.clock.to_owned()).serialize() {
+                    log::info!(
+                        "local date: {}, messsage: {}",
+                        app.clock.get(&app.id).expect("Missing local AppId !"),
+                        app.input
+                    );
+
+                    let msg = Msg::new(1, Header::Public, app.input.clone(), app.clock.clone());
+                    if let Ok(msg) = msg.serialize() {
                         output_file
                             .write_all(format!("{}\n", msg).as_bytes())
                             .expect("Failed to write to output file");
                         app.messages.push(app.input.drain(..).collect());
                     } else {
+                        app.messages.push("Could not send this message".to_owned());
                         log::error!("Could not serialize `{}`", app.input);
                     }
                 }
@@ -196,8 +208,10 @@ fn run(opt: Opt) -> Result<(), Box<dyn std::error::Error>> {
             // Input from a distant app
             Event::DistantInput(msg) => {
                 if let Ok(msg) = Msg::from_str(&msg) {
+                    let date = app.clock.entry(app.id.to_owned()).or_insert(0);
+                    *date += 1;
                     app.messages.push(msg.content);
-		            app.update_clock(msg.clock);
+                    app.update_clock(&msg.clock);
                 } else {
                     log::error!("Could not decode `{}` as a Msg", msg);
                 }
