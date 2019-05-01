@@ -56,14 +56,12 @@ impl Events {
         let _server_handle = {
             let tx = tx.clone();
             thread::spawn(move || loop {
-                match server_rx.recv() {
-                    Ok(event) => {
-                        // Forward app events
-                        tx.send(event).unwrap();
-                    }
-                    Err(e) => {
-                        log::error!("Failed to receive a server message: {}", e);
-                    }
+                if let Ok(event) = server_rx.recv() {
+                    // Forward server events
+                    tx.send(event).unwrap();
+                } else {
+                    log::info!("server disconnected");
+                    break;
                 }
             })
         };

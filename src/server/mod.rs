@@ -102,15 +102,21 @@ pub fn run(
                         .write_all(format!("{}\n", msg_str).as_bytes())
                         .expect("Failed to write to output file");
                     server.increment_clock();
-                    log::info!("local date: {}, messsage: {:?}", server.get_date(), msg.content);
+                    log::info!(
+                        "local date: {}, messsage: {:?}",
+                        server.get_date(),
+                        msg.content
+                    );
                 } else {
                     log::error!("Could not serialize `{}`", msg.content);
                 }
-            },
+            }
             Event::GetClock => {
-                    app_tx.send(AppEvent::Clock(server.clock.clone())).unwrap();
-            },
-            Event::Shutdown => break,
+                app_tx
+                    .send(AppEvent::Clock(server.clock.clone()))
+                    .expect("failed to send message to the app");
+            }
+            Event::Shutdown => break
         }
     }
 

@@ -54,8 +54,7 @@ fn main() {
 
     let server = Server::new(app.id.to_owned());
 
-
-    thread::spawn(move || {
+    let server_handle = thread::spawn(move || {
         if let Err(e) = server::run(server, app_rx, app_tx, opt) {
             log::error!("{}", e);
         }
@@ -64,4 +63,8 @@ fn main() {
     if let Err(e) = app::run(app, server_rx, server_tx) {
         log::error!("{}", e);
     };
+
+    server_handle
+        .join()
+        .expect("something went wrong with the server thread");
 }

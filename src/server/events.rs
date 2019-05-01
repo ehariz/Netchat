@@ -32,14 +32,12 @@ impl Events {
         let _app_handle = {
             let tx = tx.clone();
             thread::spawn(move || loop {
-                match app_rx.recv() {
-                    Ok(event) => {
-                        // Forward app events
-                        tx.send(event).unwrap();
-                    }
-                    Err(e) => {
-                        log::error!("Failed to receive an app message: {}", e);
-                    }
+                if let Ok(event) = app_rx.recv() {
+                    // Forward app events
+                    tx.send(event).unwrap();
+                } else {
+                    log::info!("app disconnected");
+                    break;
                 }
             })
         };

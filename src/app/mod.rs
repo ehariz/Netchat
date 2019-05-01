@@ -101,9 +101,6 @@ pub fn run(
             // Input from the user
             Event::UserInput(input) => match input {
                 Key::Ctrl('c') => {
-                    server_tx
-                        .send(ServerEvent::Shutdown)
-                        .expect("failed to send message to the server");
                     break;
                 }
                 Key::Ctrl('h') => {
@@ -131,12 +128,16 @@ pub fn run(
             }
             Event::Clock(clock) => {
                 for (id, date) in clock.0 {
-                        app.messages.push(format!("App {} date: {}", id, date));
-                    }
+                    app.messages.push(format!("App {} date: {}", id, date));
+                }
             }
             Event::Tick => {}
         }
     }
+
+    server_tx
+        .send(ServerEvent::Shutdown)
+        .expect("failed to send message to the server");
 
     Ok(())
 }
