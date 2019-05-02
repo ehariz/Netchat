@@ -95,13 +95,13 @@ pub fn run(
                 }
             }
             Event::UserPublicMessage(message) => {
+                server.increment_clock();
                 let msg = Msg::new(1, Header::Public, message, server.clock.clone());
 
                 if let Ok(msg_str) = msg.serialize() {
                     output_file
                         .write_all(format!("{}\n", msg_str).as_bytes())
                         .expect("Failed to write to output file");
-                    server.increment_clock();
                     log::info!(
                         "local date: {}, messsage: {:?}",
                         server.get_date(),
@@ -116,7 +116,7 @@ pub fn run(
                     .send(AppEvent::Clock(server.clock.clone()))
                     .expect("failed to send message to the app");
             }
-            Event::Shutdown => break
+            Event::Shutdown => break,
         }
     }
 
