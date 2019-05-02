@@ -25,7 +25,7 @@ pub struct Events {
 }
 
 impl Events {
-    pub fn new(input_file: PathBuf, app_rx: mpsc::Receiver<Event>) -> Events {
+    pub fn new(input_file_path: PathBuf, app_rx: mpsc::Receiver<Event>) -> Events {
         let (tx, rx) = mpsc::channel();
 
         // listen to the app for user commands
@@ -45,10 +45,9 @@ impl Events {
         // listen to the server for distant events
         let _input_file_handle = {
             let tx = tx.clone();
-            thread::spawn(move || {
-                let input_file = File::open(input_file).expect("Could not open input file");
+            thread::spawn(move || loop {
+                let input_file = File::open(&input_file_path).expect("Could not open input file");
                 let reader = BufReader::new(input_file);
-
                 reader.lines().for_each(|line| {
                     tx.send(Event::DistantInput(
                         line.expect("Could not read from input file"),

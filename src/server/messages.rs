@@ -6,13 +6,13 @@ use super::Clock;
 pub type MsgId = u64;
 pub type Date = u64;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum Header {
     Private(AppId),
     Public,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct Msg {
     pub id: MsgId,
     pub header: Header,

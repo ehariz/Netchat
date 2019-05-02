@@ -1,5 +1,3 @@
-extern crate rand;
-
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::thread;
