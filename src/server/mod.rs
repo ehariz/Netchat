@@ -118,9 +118,9 @@ pub fn run(
         match events.next()? {
             // Input from a distant app
             Event::DistantInput(msg) => {
-                server.increment_clock();
                 if let Ok(mut msg) = Msg::from_str(&msg) {
                     if server.sent_messages_ids.insert(msg.id.clone()) {
+                        server.increment_clock();
                         server.receive_message(&mut msg, &mut output_file);
                         app_tx.send(AppEvent::DistantMessage(msg)).unwrap();
                     }

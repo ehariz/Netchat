@@ -1,5 +1,3 @@
-extern crate rand;
-
 use std::io::{self, Write};
 use std::iter;
 use std::sync::mpsc;
