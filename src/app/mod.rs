@@ -64,6 +64,8 @@ pub fn run(
 
     let events = Events::new(server_rx);
 
+    let last_private_id = "You".to_owned();
+
     loop {
         // Draw UI
         terminal.draw(|mut f| {
@@ -113,6 +115,13 @@ pub fn run(
                     let message: String = app.input.drain(..).collect();
                     app.messages.push(format!("Me: {}", message));
                 }
+                Key::Ctrl('p') => {
+                    server_tx
+                        .send(ServerEvent::UserPrivateMessage(last_private_id.clone(), app.input.clone()))
+                        .expect("failed to send message to the server");
+                    let message: String = app.input.drain(..).collect();
+                    app.messages.push(format!("Me to {}: {}", last_private_id, message));
+                },
                 Key::Char(c) => {
                     app.input.push(c);
                 }

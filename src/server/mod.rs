@@ -11,7 +11,7 @@ use rand::{thread_rng, Rng};
 use shrinkwraprs::Shrinkwrap;
 
 pub mod messages;
-use messages::{Date, Header, Msg, MsgId};
+use messages::{Date, Header::*, Msg, MsgId};
 
 pub mod events;
 use events::{Event, Events};
@@ -119,10 +119,19 @@ pub fn run(
             // Input from a distant app
             Event::DistantInput(msg) => {
                 if let Ok(mut msg) = Msg::from_str(&msg) {
+                    // If we receive this message for the first time
                     if server.sent_messages_ids.insert(msg.id.clone()) {
                         server.increment_clock();
                         server.receive_message(&mut msg, &mut output_file);
-                        app_tx.send(AppEvent::DistantMessage(msg)).unwrap();
+                        match &msg.header {
+                            Public => {
+                                app_tx.send(AppEvent::DistantMessage(msg)).unwrap();
+                            },
+                            Private(app_id) if *app_id == server.app_id => {
+                                app_tx.send(AppEvent::DistantMessage(msg)).unwrap();
+                            },
+                            Private(_) => {}
+                        }
                     }
                 } else {
                     log::error!("Could not decode `{}` as a Msg", msg);
@@ -132,14 +141,21 @@ pub fn run(
                 let msg_id: MsgId = rng.gen();
                 server.sent_messages_ids.insert(msg_id.clone());
                 server.increment_clock();
-                let msg = Msg::new(msg_id, server.app_id.clone(), Header::Public, message, server.clock.clone());
+                let msg = Msg::new(msg_id, server.app_id.clone(), Public, message, server.clock.clone());
                 server.send_message(&msg, &mut output_file);
-            }
+            },
+            Event::UserPrivateMessage(app_id, message) => {
+                let msg_id: MsgId = rng.gen();
+                server.sent_messages_ids.insert(msg_id.clone());
+                server.increment_clock();
+                let msg = Msg::new(msg_id, server.app_id.clone(), Private(app_id), message, server.clock.clone());
+                server.send_message(&msg, &mut output_file);
+            },
             Event::GetClock => {
                 app_tx
                     .send(AppEvent::Clock(server.clock.clone()))
                     .expect("failed to send message to the app");
-            }
+            },
             Event::Shutdown => break,
         }
     }

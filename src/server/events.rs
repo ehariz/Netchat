@@ -4,10 +4,13 @@ use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::thread;
+use crate::app::AppId;
 
 pub enum Event {
     /// User public message
     UserPublicMessage(String),
+    /// User public message
+    UserPrivateMessage(AppId, String),
     /// Input from a distant agent (write in a file)
     DistantInput(String),
     /// Shutdown the server
