@@ -73,10 +73,10 @@ impl Server {
             log::info!(
                 "sent, local date: {}, messsage: {:?}",
                 self.get_date(),
-                msg.content
+                msg.header
             );
         } else {
-            log::error!("Could not serialize `{}`", msg.content);
+            log::error!("Could not serialize `{:?}`", msg.header);
         }
     }
 
@@ -85,7 +85,7 @@ impl Server {
         log::info!(
             "received, local date: {}, messsage: {:?}",
             self.get_date(),
-            msg.content
+            msg.header
         );
         msg.clock = self.clock.clone();
         self.send_message(msg, output_file);
@@ -124,13 +124,13 @@ pub fn run(
                         server.increment_clock();
                         server.receive_message(&mut msg, &mut output_file);
                         match &msg.header {
-                            Public => {
+                            Public(_) => {
                                 app_tx.send(AppEvent::DistantMessage(msg)).unwrap();
                             }
-                            Private(app_id) if *app_id == server.app_id => {
+                            Private(app_id, _) if *app_id == server.app_id => {
                                 app_tx.send(AppEvent::DistantMessage(msg)).unwrap();
                             }
-                            Private(_) => {}
+                            Private(_, _) => {}
                         }
                     }
                 } else {
@@ -144,8 +144,7 @@ pub fn run(
                 let msg = Msg::new(
                     msg_id,
                     server.app_id.clone(),
-                    Public,
-                    message,
+                    Public(message),
                     server.clock.clone(),
                 );
                 server.send_message(&msg, &mut output_file);
@@ -157,8 +156,7 @@ pub fn run(
                 let msg = Msg::new(
                     msg_id,
                     server.app_id.clone(),
-                    Private(app_id),
-                    message,
+                    Private(app_id, message),
                     server.clock.clone(),
                 );
                 server.send_message(&msg, &mut output_file);

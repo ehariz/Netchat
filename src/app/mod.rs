@@ -143,13 +143,13 @@ pub fn run(
             },
             // Input from a distant app
             Event::DistantMessage(msg) => match &msg.header {
-                Public => {
+                Public(content) => {
                     app.messages
-                        .push(format!("{}: {}", msg.sender_id, msg.content));
+                        .push(format!("{}: {}", msg.sender_id, content));
                 }
-                Private(_) => {
+                Private(_, content) => {
                     app.messages
-                        .push(format!("{} to You: {}", msg.sender_id, msg.content));
+                        .push(format!("{} to You: {}", msg.sender_id, content));
                 }
             },
             Event::Clock(clock) => {

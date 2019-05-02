@@ -6,10 +6,11 @@ use super::Clock;
 pub type MsgId = u64;
 pub type Date = u64;
 
+/// Header(Content)
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum Header {
-    Private(AppId),
-    Public,
+    Private(AppId, String),
+    Public(String),
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
@@ -17,17 +18,15 @@ pub struct Msg {
     pub id: MsgId,
     pub sender_id: AppId,
     pub header: Header,
-    pub content: String,
     pub clock: Clock,
 }
 
 impl Msg {
-    pub fn new(id: MsgId, sender_id: AppId, header: Header, content: String, clock: Clock) -> Self {
+    pub fn new(id: MsgId, sender_id: AppId, header: Header, clock: Clock) -> Self {
         Msg {
             id,
             sender_id,
             header,
-            content,
             clock,
         }
     }
@@ -49,8 +48,7 @@ mod tests {
         let msg = Msg {
             id: 1,
             sender_id: "asdasdw".to_owned(),
-            header: Header::Private("42".to_string()),
-            content: "I like trains !".to_string(),
+            header: Header::Private("42".to_string(), "I like trains !".to_string()),
             clock: Clock(
                 [("1".to_string(), 2), ("3".to_string(), 4)]
                     .iter()
