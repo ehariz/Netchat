@@ -110,7 +110,8 @@ pub fn run(
                     server_tx
                         .send(ServerEvent::UserPublicMessage(app.input.clone()))
                         .expect("failed to send message to the server");
-                    app.messages.push(app.input.drain(..).collect());
+                    let message: String = app.input.drain(..).collect();
+                    app.messages.push(format!("Me: {}", message));
                 }
                 Key::Char(c) => {
                     app.input.push(c);
@@ -122,7 +123,7 @@ pub fn run(
             },
             // Input from a distant app
             Event::DistantMessage(msg) => {
-                app.messages.push(msg.content);
+                app.messages.push(format!("{}: {}", msg.sender_id, msg.content));
             }
             Event::Clock(clock) => {
                 for (id, date) in clock.0 {

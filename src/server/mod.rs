@@ -132,7 +132,7 @@ pub fn run(
                 let msg_id: MsgId = rng.gen();
                 server.sent_messages_ids.insert(msg_id.clone());
                 server.increment_clock();
-                let msg = Msg::new(msg_id, Header::Public, message, server.clock.clone());
+                let msg = Msg::new(msg_id, server.app_id.clone(), Header::Public, message, server.clock.clone());
                 server.send_message(&msg, &mut output_file);
             }
             Event::GetClock => {
