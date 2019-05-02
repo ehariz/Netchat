@@ -23,6 +23,7 @@ pub mod events;
 use events::{Event, Events};
 
 use crate::server::events::Event as ServerEvent;
+use crate::server::messages::Header::{Private, Public};
 
 pub type AppId = String;
 
@@ -64,7 +65,7 @@ pub fn run(
 
     let events = Events::new(server_rx);
 
-    let last_private_id = "You".to_owned();
+    let mut last_private_id = "You".to_owned();
 
     loop {
         // Draw UI
@@ -113,15 +114,25 @@ pub fn run(
                         .send(ServerEvent::UserPublicMessage(app.input.clone()))
                         .expect("failed to send message to the server");
                     let message: String = app.input.drain(..).collect();
-                    app.messages.push(format!("Me: {}", message));
+                    app.messages.push(format!("You: {}", message));
+                }
+                // set the recipient id for private messages
+                Key::Ctrl('r') => {
+                    last_private_id = app.input.drain(..).collect();
+                    app.messages
+                        .push(format!("Private recipient id set to: {}", last_private_id));
                 }
                 Key::Ctrl('p') => {
                     server_tx
-                        .send(ServerEvent::UserPrivateMessage(last_private_id.clone(), app.input.clone()))
+                        .send(ServerEvent::UserPrivateMessage(
+                            last_private_id.clone(),
+                            app.input.clone(),
+                        ))
                         .expect("failed to send message to the server");
                     let message: String = app.input.drain(..).collect();
-                    app.messages.push(format!("Me to {}: {}", last_private_id, message));
-                },
+                    app.messages
+                        .push(format!("You to {}: {}", last_private_id, message));
+                }
                 Key::Char(c) => {
                     app.input.push(c);
                 }
@@ -131,9 +142,16 @@ pub fn run(
                 _ => {}
             },
             // Input from a distant app
-            Event::DistantMessage(msg) => {
-                app.messages.push(format!("{}: {}", msg.sender_id, msg.content));
-            }
+            Event::DistantMessage(msg) => match &msg.header {
+                Public => {
+                    app.messages
+                        .push(format!("{}: {}", msg.sender_id, msg.content));
+                }
+                Private(_) => {
+                    app.messages
+                        .push(format!("{} to You: {}", msg.sender_id, msg.content));
+                }
+            },
             Event::Clock(clock) => {
                 for (id, date) in clock.0 {
                     app.messages.push(format!("App {} date: {}", id, date));

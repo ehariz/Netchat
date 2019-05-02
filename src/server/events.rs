@@ -1,10 +1,10 @@
 use std::fs::File;
 // BufRead : WHY ????
+use crate::app::AppId;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::thread;
-use crate::app::AppId;
 
 pub enum Event {
     /// User public message
