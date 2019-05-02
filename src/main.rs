@@ -12,9 +12,17 @@ use server::Server;
 mod app;
 use app::App;
 
-/// Command line arguments
 #[derive(StructOpt, Debug)]
-#[structopt(name = "args")]
+#[structopt(name = "netchat")]
+/// A fully decentralized (thus inefficient) chat written in rust
+/// 
+/// Enter  -> sends the content of the input field to everyone
+/// 
+/// Ctrl+c -> exit
+/// 
+/// Ctrl+r -> set the private message recipient id to the content of the input field  
+/// 
+/// Ctrl+p -> sends the content of the input field to the current private recipient
 pub struct Opt {
     /// Input file
     #[structopt(short = "i", long = "input", parse(from_os_str))]

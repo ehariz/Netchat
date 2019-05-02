@@ -1,9 +1,16 @@
-A decentralized (thus inefficient) chat in rust
+A fully decentralized (thus inefficient) chat written in rust
 ===
 
 ```
 cargo run -- --help
 ```
+
+## Commands
+* `Enter` sends the content of the input field to everyone
+* `ctrl+c` exit
+* `Ctrl+r` set the private message recipient id to the content of the input field
+* `Ctrl+p` sends the content of the input field to the current private recipient
+
 
 ## Dev
 
