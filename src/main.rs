@@ -53,10 +53,11 @@ fn main() {
         app.id = id;
     }
 
-    app.messages.push(format!(
+    app.messages.push(
+        app::Message::System(format!(
         "input : {:?}, output : {:?}, id : {}",
         opt.input, opt.output, app.id
-    ));
+    )));
 
     let server = Server::new(app.id.to_owned());
 

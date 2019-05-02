@@ -27,12 +27,27 @@ use crate::server::messages::Header::{Private, Public};
 
 pub type AppId = String;
 
+pub enum Message {
+    System(String),
+    User(String),
+}
+use Message::*;
+
+impl Message {
+    pub fn str(&self) -> &str {
+        match self {
+            System(s) => s,
+            User(s) => s,
+        }
+    }
+}
+
 /// App holds the state of the application
 pub struct App {
     //Application id
     pub id: AppId,
     /// History of recorded messages
-    pub messages: Vec<String>,
+    pub messages: Vec<Message>,
     /// Current value of the input box
     input: String,
 }
@@ -66,6 +81,9 @@ pub fn run(
     let events = Events::new(server_rx);
 
     let mut last_private_id = "You".to_owned();
+    server_tx
+        .send(ServerEvent::UserPublicMessage("joined the chat".to_string()))
+        .expect("failed to send message to the server");
 
     loop {
         // Draw UI
@@ -84,7 +102,7 @@ pub fn run(
                 .iter()
                 .rev()
                 .enumerate()
-                .map(|(_, m)| Text::raw(format!("{}", m)));
+                .map(|(_, m)| Text::raw(format!("{}", m.str())));
             List::new(messages)
                 .block(Block::default().borders(Borders::ALL).title("Messages"))
                 .render(&mut f, chunks[1]);
@@ -114,13 +132,13 @@ pub fn run(
                         .send(ServerEvent::UserPublicMessage(app.input.clone()))
                         .expect("failed to send message to the server");
                     let message: String = app.input.drain(..).collect();
-                    app.messages.push(format!("You: {}", message));
+                    app.messages.push(User(format!("You: {}", message)));
                 }
                 // set the recipient id for private messages
                 Key::Ctrl('r') => {
                     last_private_id = app.input.drain(..).collect();
                     app.messages
-                        .push(format!("Private recipient id set to: {}", last_private_id));
+                        .push(System(format!("Private recipient id set to: {}", last_private_id)));
                 }
                 Key::Ctrl('p') => {
                     server_tx
@@ -131,7 +149,7 @@ pub fn run(
                         .expect("failed to send message to the server");
                     let message: String = app.input.drain(..).collect();
                     app.messages
-                        .push(format!("You to {}: {}", last_private_id, message));
+                        .push(User(format!("You to {}: {}", last_private_id, message)));
                 }
                 Key::Char(c) => {
                     app.input.push(c);
@@ -145,16 +163,16 @@ pub fn run(
             Event::DistantMessage(msg) => match &msg.header {
                 Public(content) => {
                     app.messages
-                        .push(format!("{}: {}", msg.sender_id, content));
+                        .push(User(format!("{}: {}", msg.sender_id, content)));
                 }
                 Private(_, content) => {
                     app.messages
-                        .push(format!("{} to You: {}", msg.sender_id, content));
+                        .push(User(format!("{} to You: {}", msg.sender_id, content)));
                 }
             },
             Event::Clock(clock) => {
                 for (id, date) in clock.0 {
-                    app.messages.push(format!("App {} date: {}", id, date));
+                    app.messages.push(System(format!("App {} date: {}", id, date)));
                 }
             }
             Event::Tick => {}

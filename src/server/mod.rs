@@ -166,7 +166,19 @@ pub fn run(
                     .send(AppEvent::Clock(server.clock.clone()))
                     .expect("failed to send message to the app");
             }
-            Event::Shutdown => break,
+            Event::Shutdown => {
+                let msg_id: MsgId = rng.gen();
+                server.sent_messages_ids.insert(msg_id.clone());
+                server.increment_clock();
+                let msg = Msg::new(
+                    msg_id,
+                    server.app_id.clone(),
+                    Public("left the chat".to_owned()),
+                    server.clock.clone(),
+                );
+                server.send_message(&msg, &mut output_file);
+                break;
+            }
         }
     }
 
