@@ -23,7 +23,7 @@ pub mod events;
 use events::{Event, Events};
 
 use crate::server::events::Event as ServerEvent;
-use crate::server::messages::Header::{Private, Public};
+use crate::server::messages::Header::*;
 
 pub type AppId = String;
 
@@ -129,6 +129,11 @@ pub fn run(
                         .send(ServerEvent::GetClock)
                         .expect("failed to send message to the server");
                 }
+                Key::Ctrl('s') => {
+                    server_tx
+                        .send(ServerEvent::GetSnapshot)
+                        .expect("failed to send message to the server");
+                }
                 Key::Char('\n') => {
                     server_tx
                         .send(ServerEvent::UserPublicMessage(app.input.clone()))
@@ -173,6 +178,8 @@ pub fn run(
                     app.messages
                         .push(User(format!("{} to You: {}", msg.sender_id, content)));
                 }
+                SnapshotRequest(_) => {},
+                SnapshotResponse(_,_) => {},
             },
             Event::Clock(clock) => {
                 for (id, date) in clock.0 {

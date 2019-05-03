@@ -15,8 +15,10 @@ pub enum Event {
     DistantInput(String),
     /// Shutdown the server
     Shutdown,
-    /// Get Colck
+    /// Get Clock
     GetClock,
+    /// Request snapshot from other apps
+    GetSnapshot,
 }
 
 /// A small event handler that wrap termion input and tick events. Each event
