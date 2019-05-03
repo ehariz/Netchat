@@ -1,8 +1,8 @@
 use crate::app::AppId;
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
+use std::path::PathBuf;
 use std::sync::mpsc;
 
 use serde::{Deserialize, Serialize};
@@ -26,6 +26,7 @@ pub struct Server {
 }
 
 #[derive(Shrinkwrap, Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[shrinkwrap(mutable)]
 pub struct Clock(pub HashMap<AppId, Date>);
 
 impl Clock {
@@ -41,7 +42,7 @@ impl Clock {
                 // Do not update the clock if it contains a more recent date
                 Some(local_date) if local_date >= date => {}
                 _ => {
-                    self.0.insert(id.to_owned(), date.to_owned());
+                    self.insert(id.to_owned(), date.to_owned());
                 }
             }
         }
@@ -62,7 +63,7 @@ impl Server {
     }
 
     fn increment_clock(&mut self) {
-        let date = self.clock.0.entry(self.app_id.to_owned()).or_insert(0);
+        let date = self.clock.entry(self.app_id.to_owned()).or_insert(0);
         *date += 1;
     }
 
