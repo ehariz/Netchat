@@ -14,6 +14,8 @@ pub enum Event {
     UserInput(Key),
     /// Input from a distant agent (write in a file)
     DistantMessage(Msg),
+    /// Information from the server
+    ServerMessage(String),
     /// Periodically send tick a to refresh the UI
     Tick,
     /// Clock for display

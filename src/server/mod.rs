@@ -1,5 +1,6 @@
 use crate::app::AppId;
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::sync::mpsc;
@@ -65,22 +66,31 @@ impl Server {
         *date += 1;
     }
 
-    fn send_message(&mut self, msg: &Msg, output_file: &mut File) {
+    fn send_message(&mut self, msg: &Msg, output_file: &mut File, app_tx: &mpsc::Sender<AppEvent>) {
         if let Ok(msg_str) = msg.serialize() {
-            output_file
-                .write_all(format!("{}\n", msg_str).as_bytes())
-                .expect("Failed to write to output file");
-            log::info!(
-                "sent, local date: {}, messsage: {:?}",
-                self.get_date(),
-                msg.header
-            );
+            if let Ok(_) = output_file.write_all(format!("{}\n", msg_str).as_bytes()) {
+                log::info!(
+                    "sent, local date: {}, messsage: {:?}",
+                    self.get_date(),
+                    msg.header
+                );
+            } else {
+                app_tx
+                    .send(AppEvent::ServerMessage("No one can hear you".to_owned()))
+                    .unwrap();
+                log::error!("Failed to write to output file");
+            }
         } else {
-            log::error!("Could not serialize `{:?}`", msg.header);
+            log::error!("Could not serialize `{:?}`", msg);
         }
     }
 
-    fn receive_message(&mut self, msg: &mut Msg, output_file: &mut File) {
+    fn receive_message(
+        &mut self,
+        msg: &mut Msg,
+        output_file: &mut File,
+        app_tx: &mpsc::Sender<AppEvent>,
+    ) {
         self.clock.merge(&msg.clock);
         log::info!(
             "received, local date: {}, messsage: {:?}",
@@ -88,7 +98,7 @@ impl Server {
             msg.header
         );
         msg.clock = self.clock.clone();
-        self.send_message(msg, output_file);
+        self.send_message(msg, output_file, app_tx);
     }
 }
 
@@ -96,19 +106,20 @@ pub fn run(
     mut server: Server,
     app_rx: mpsc::Receiver<Event>,
     app_tx: mpsc::Sender<AppEvent>,
-    opt: crate::Opt,
+    input_file_path: PathBuf,
+    output_file_path: PathBuf,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Order matter !
 
     // 1 Setup event handlers
-    let events = Events::new(opt.input.to_owned(), app_rx);
+    let events = Events::new(input_file_path.to_owned(), app_rx);
 
     // 2 Open the output pipe,
     // the program will freeze until there is someone at the other end
     let mut output_file = OpenOptions::new()
         .write(true)
         .append(true)
-        .open(opt.output.to_owned())
+        .open(output_file_path.to_owned())
         .expect("failed to open output file");
 
     let mut rng = thread_rng();
@@ -122,7 +133,7 @@ pub fn run(
                     // If we receive this message for the first time
                     if server.sent_messages_ids.insert(msg.id.clone()) {
                         server.increment_clock();
-                        server.receive_message(&mut msg, &mut output_file);
+                        server.receive_message(&mut msg, &mut output_file, &app_tx);
                         match &msg.header {
                             Public(_) => {
                                 app_tx.send(AppEvent::DistantMessage(msg)).unwrap();
@@ -147,7 +158,7 @@ pub fn run(
                     Public(message),
                     server.clock.clone(),
                 );
-                server.send_message(&msg, &mut output_file);
+                server.send_message(&msg, &mut output_file, &app_tx);
             }
             Event::UserPrivateMessage(app_id, message) => {
                 let msg_id: MsgId = rng.gen();
@@ -159,7 +170,7 @@ pub fn run(
                     Private(app_id, message),
                     server.clock.clone(),
                 );
-                server.send_message(&msg, &mut output_file);
+                server.send_message(&msg, &mut output_file, &app_tx);
             }
             Event::GetClock => {
                 app_tx
@@ -176,7 +187,7 @@ pub fn run(
                     Public("left the chat".to_owned()),
                     server.clock.clone(),
                 );
-                server.send_message(&msg, &mut output_file);
+                server.send_message(&msg, &mut output_file, &app_tx);
                 break;
             }
         }

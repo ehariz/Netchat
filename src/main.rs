@@ -1,7 +1,9 @@
+use std::fs::OpenOptions;
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::thread;
 
+use gag::Redirect;
 use log;
 
 use structopt::StructOpt;
@@ -15,13 +17,13 @@ use app::App;
 #[derive(StructOpt, Debug)]
 #[structopt(name = "netchat")]
 /// A fully decentralized (thus inefficient) chat written in rust
-/// 
+///
 /// Enter  -> sends the content of the input field to everyone
-/// 
+///
 /// Ctrl+c -> exit
-/// 
+///
 /// Ctrl+r -> set the private message recipient id to the content of the input field  
-/// 
+///
 /// Ctrl+p -> sends the content of the input field to the current private recipient
 pub struct Opt {
     /// Input file
@@ -35,13 +37,28 @@ pub struct Opt {
     //Application Identifier
     #[structopt(short = "n", long = "name")]
     id: Option<String>,
+
+    //Application Identifier
+    #[structopt(short = "l", long = "logfile")]
+    logfile: Option<PathBuf>,
 }
 
 fn main() {
+    let opt = Opt::from_args();
+
+    // Open a log file
+    let logfile = opt.logfile.clone().unwrap_or("/tmp/netchat.log".into());
+    let log = OpenOptions::new()
+        .truncate(true)
+        .read(true)
+        .create(true)
+        .write(true)
+        .open(logfile)
+        .unwrap();
+
+    let _stderr_redirect_handle = Redirect::stderr(log).unwrap();
     color_backtrace::install();
     env_logger::init();
-
-    let opt = Opt::from_args();
 
     let (app_tx, server_rx) = mpsc::channel(); // server -> app
     let (server_tx, app_rx) = mpsc::channel(); // app    -> server
@@ -53,8 +70,7 @@ fn main() {
         app.id = id;
     }
 
-    app.messages.push(
-        app::Message::System(format!(
+    app.messages.push(app::Message::System(format!(
         "input : {:?}, output : {:?}, id : {}",
         opt.input, opt.output, app.id
     )));
@@ -62,7 +78,7 @@ fn main() {
     let server = Server::new(app.id.to_owned());
 
     let server_handle = thread::spawn(move || {
-        if let Err(e) = server::run(server, app_rx, app_tx, opt) {
+        if let Err(e) = server::run(server, app_rx, app_tx, opt.input, opt.output) {
             log::error!("{}", e);
         }
     });

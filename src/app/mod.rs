@@ -82,7 +82,9 @@ pub fn run(
 
     let mut last_private_id = "You".to_owned();
     server_tx
-        .send(ServerEvent::UserPublicMessage("joined the chat".to_string()))
+        .send(ServerEvent::UserPublicMessage(
+            "joined the chat".to_string(),
+        ))
         .expect("failed to send message to the server");
 
     loop {
@@ -137,8 +139,10 @@ pub fn run(
                 // set the recipient id for private messages
                 Key::Ctrl('r') => {
                     last_private_id = app.input.drain(..).collect();
-                    app.messages
-                        .push(System(format!("Private recipient id set to: {}", last_private_id)));
+                    app.messages.push(System(format!(
+                        "Private recipient id set to: {}",
+                        last_private_id
+                    )));
                 }
                 Key::Ctrl('p') => {
                     server_tx
@@ -172,8 +176,12 @@ pub fn run(
             },
             Event::Clock(clock) => {
                 for (id, date) in clock.0 {
-                    app.messages.push(System(format!("App {} date: {}", id, date)));
+                    app.messages
+                        .push(System(format!("App {} date: {}", id, date)));
                 }
+            }
+            Event::ServerMessage(string) => {
+                app.messages.push(System(format!("Sever: {}", string)));
             }
             Event::Tick => {}
         }
