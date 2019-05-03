@@ -25,6 +25,10 @@ use app::App;
 /// Ctrl+r -> set the private message recipient id to the content of the input field  
 ///
 /// Ctrl+p -> sends the content of the input field to the current private recipient
+///
+/// Up     -> scroll messages up
+///
+/// Down   -> scroll messages down
 pub struct Opt {
     /// Input file
     #[structopt(short = "i", long = "input", parse(from_os_str))]

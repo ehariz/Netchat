@@ -10,7 +10,9 @@ cargo run -- --help
 * `ctrl+c` exit
 * `Ctrl+r` set the private message recipient id to the content of the input field
 * `Ctrl+p` sends the content of the input field to the current private recipient
-
+* `Up` scroll messages up
+* `Down` scroll messages down
+pub struct Opt {
 
 ## Dev
 

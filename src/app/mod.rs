@@ -50,6 +50,7 @@ pub struct App {
     pub messages: Vec<Message>,
     /// Current value of the input box
     input: String,
+    first_display_message_id: usize,
 }
 
 impl Default for App {
@@ -62,6 +63,7 @@ impl Default for App {
                 .collect(),
             input: String::new(),
             messages: Vec::new(),
+            first_display_message_id: 0,
         }
     }
 }
@@ -87,6 +89,8 @@ pub fn run(
         ))
         .expect("failed to send message to the server");
 
+    let mut msg_list_size: usize = 0;
+
     loop {
         // Draw UI
         terminal.draw(|mut f| {
@@ -95,6 +99,9 @@ pub fn run(
                 .margin(2)
                 .constraints([Constraint::Length(3), Constraint::Min(1)].as_ref())
                 .split(f.size());
+            
+            msg_list_size = chunks[1].inner(1).height.into();
+            
             Paragraph::new([Text::raw(&app.input)].iter())
                 .style(Style::default().fg(Color::Cyan))
                 .block(Block::default().borders(Borders::ALL).title("Input"))
@@ -103,8 +110,8 @@ pub fn run(
                 .messages
                 .iter()
                 .rev()
-                .enumerate()
-                .map(|(_, m)| Text::raw(format!("{}", m.str())));
+                .skip(app.first_display_message_id)
+                .map(|m| Text::raw(m.str()));
             List::new(messages)
                 .block(Block::default().borders(Borders::ALL).title("Messages"))
                 .render(&mut f, chunks[1]);
@@ -166,6 +173,13 @@ pub fn run(
                 Key::Backspace => {
                     app.input.pop();
                 }
+                Key::Up => {
+                    app.first_display_message_id = app.first_display_message_id.saturating_sub(1);
+                    eprintln!("{}", app.first_display_message_id);
+                },
+                Key::Down => {
+                    app.first_display_message_id = app.messages.len().saturating_sub(msg_list_size).min(app.first_display_message_id + 1);
+                },
                 _ => {}
             },
             // Input from a distant app
