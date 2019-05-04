@@ -10,8 +10,8 @@ use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 
 use tui::backend::TermionBackend;
-use tui::layout::{Constraint, Direction, Layout};
-use tui::style::{Color, Style};
+use tui::layout::{Alignment, Constraint, Direction, Layout};
+use tui::style::{Color, Modifier, Style};
 use tui::widgets::{Block, Borders, List, Paragraph, Text, Widget};
 use tui::Terminal;
 
@@ -93,16 +93,28 @@ pub fn run(
         terminal.draw(|mut f| {
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
-                .margin(2)
-                .constraints([Constraint::Length(3), Constraint::Min(1)].as_ref())
+                .constraints(
+                    [
+                        Constraint::Length(1),
+                        Constraint::Length(3),
+                        Constraint::Min(1),
+                        Constraint::Length(1),
+                    ]
+                    .as_ref(),
+                )
                 .split(f.size());
 
-            msg_list_size = chunks[1].inner(1).height.into();
+            msg_list_size = chunks[2].inner(1).height.into();
+
+            Paragraph::new([Text::raw("NetChat")].iter())
+                .alignment(Alignment::Center)
+                .render(&mut f, chunks[0]);
 
             Paragraph::new([Text::raw(&app.input)].iter())
                 .style(Style::default().fg(Color::Cyan))
-                .block(Block::default().borders(Borders::ALL).title("Input"))
-                .render(&mut f, chunks[0]);
+                .block(Block::default().borders(Borders::ALL).title(" Input "))
+                .render(&mut f, chunks[1]);
+
             let messages = app
                 .messages
                 .iter()
@@ -110,15 +122,32 @@ pub fn run(
                 .skip(app.first_display_message_id)
                 .map(|m| Text::raw(m.str()));
             List::new(messages)
-                .block(Block::default().borders(Borders::ALL).title("Messages"))
-                .render(&mut f, chunks[1]);
+                .block(Block::default().borders(Borders::ALL).title(" Messages "))
+                .render(&mut f, chunks[2]);
+
+            Paragraph::new(
+                [
+                    Text::styled("^C", Style::default().modifier(Modifier::REVERSED)),
+                    Text::raw(" Quit "),
+                    Text::styled("^H", Style::default().modifier(Modifier::REVERSED)),
+                    Text::raw(" Display Clocks "),
+                    Text::styled("^S", Style::default().modifier(Modifier::REVERSED)),
+                    Text::raw(" Save "),
+                    Text::styled("^R", Style::default().modifier(Modifier::REVERSED)),
+                    Text::raw(" Private Message "),
+                    Text::styled("^P", Style::default().modifier(Modifier::REVERSED)),
+                    Text::raw(""),
+                ]
+                .iter(),
+            )
+            .render(&mut f, chunks[3]);
         })?;
 
         // Put the cursor back inside the input box
         write!(
             terminal.backend_mut(),
             "{}",
-            Goto(4 + app.input.width() as u16, 4)
+            Goto(2 + app.input.width() as u16, 3)
         )?;
 
         // Handle events
