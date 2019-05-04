@@ -200,7 +200,77 @@ pub fn run(
     loop {
         // Handle events
         match events.next()? {
+            // User commands
+            //--------------
+            Event::UserPublicMessage(message) => {
+                let msg_id: MsgId = rng.gen();
+                server.sent_messages_ids.insert(msg_id.clone());
+                server.increment_clock();
+                let msg = Msg::new(
+                    msg_id,
+                    server.app_id.clone(),
+                    Public(message),
+                    server.clock.clone(),
+                );
+                server.send_message(&msg, &mut output_file, &app_tx);
+                server.sent_messages.push(msg);
+            }
+            Event::UserPrivateMessage(app_id, message) => {
+                let msg_id: MsgId = rng.gen();
+                server.sent_messages_ids.insert(msg_id.clone());
+                server.increment_clock();
+                let msg = Msg::new(
+                    msg_id,
+                    server.app_id.clone(),
+                    Private(app_id, message),
+                    server.clock.clone(),
+                );
+                server.send_message(&msg, &mut output_file, &app_tx);
+                server.sent_messages.push(msg);
+            }
+            Event::GetClock => {
+                send_to_app(AppEvent::DisplayClock(server.clock.clone()), &app_tx);
+            }
+            Event::Shutdown => {
+                let msg_id: MsgId = rng.gen();
+                server.sent_messages_ids.insert(msg_id.clone());
+                server.increment_clock();
+                let msg = Msg::new(
+                    msg_id,
+                    server.app_id.clone(),
+                    Disconnection,
+                    server.clock.clone(),
+                );
+                server.send_message(&msg, &mut output_file, &app_tx);
+                break;
+            }
+            Event::GetSnapshot => {
+                let msg_id: MsgId = rng.gen();
+                server.sent_messages_ids.insert(msg_id.clone());
+                server.increment_clock();
+                let msg = Msg::new(
+                    msg_id,
+                    server.app_id.clone(),
+                    SnapshotRequest(server.app_id.to_owned()),
+                    server.clock.clone(),
+                );
+                server.send_message(&msg, &mut output_file, &app_tx);
+                server.sent_messages.push(msg.clone());
+                // Adding local messages and clock to snapshot
+                server.snapshot.dates.insert(
+                    server.app_id.clone(),
+                    *server
+                        .clock
+                        .get(&server.app_id)
+                        .expect("Missing server date !"),
+                );
+                server
+                    .snapshot
+                    .messages
+                    .insert(server.app_id.clone(), server.sent_messages.clone());
+            }
             // Input from a distant app
+            //-------------------------
             Event::DistantInput(msg) => {
                 if let Ok(mut msg) = Msg::from_str(&msg) {
                     // If we receive this message for the first time
@@ -283,73 +353,6 @@ pub fn run(
                 } else {
                     log::error!("Could not decode `{}` as a Msg", msg);
                 }
-            }
-            Event::UserPublicMessage(message) => {
-                let msg_id: MsgId = rng.gen();
-                server.sent_messages_ids.insert(msg_id.clone());
-                server.increment_clock();
-                let msg = Msg::new(
-                    msg_id,
-                    server.app_id.clone(),
-                    Public(message),
-                    server.clock.clone(),
-                );
-                server.send_message(&msg, &mut output_file, &app_tx);
-                server.sent_messages.push(msg);
-            }
-            Event::UserPrivateMessage(app_id, message) => {
-                let msg_id: MsgId = rng.gen();
-                server.sent_messages_ids.insert(msg_id.clone());
-                server.increment_clock();
-                let msg = Msg::new(
-                    msg_id,
-                    server.app_id.clone(),
-                    Private(app_id, message),
-                    server.clock.clone(),
-                );
-                server.send_message(&msg, &mut output_file, &app_tx);
-                server.sent_messages.push(msg);
-            }
-            Event::GetClock => {
-                send_to_app(AppEvent::DisplayClock(server.clock.clone()), &app_tx);
-            }
-            Event::Shutdown => {
-                let msg_id: MsgId = rng.gen();
-                server.sent_messages_ids.insert(msg_id.clone());
-                server.increment_clock();
-                let msg = Msg::new(
-                    msg_id,
-                    server.app_id.clone(),
-                    Disconnection,
-                    server.clock.clone(),
-                );
-                server.send_message(&msg, &mut output_file, &app_tx);
-                break;
-            }
-            Event::GetSnapshot => {
-                let msg_id: MsgId = rng.gen();
-                server.sent_messages_ids.insert(msg_id.clone());
-                server.increment_clock();
-                let msg = Msg::new(
-                    msg_id,
-                    server.app_id.clone(),
-                    SnapshotRequest(server.app_id.to_owned()),
-                    server.clock.clone(),
-                );
-                server.send_message(&msg, &mut output_file, &app_tx);
-                server.sent_messages.push(msg.clone());
-                // Adding local messages and clock to snapshot
-                server.snapshot.dates.insert(
-                    server.app_id.clone(),
-                    *server
-                        .clock
-                        .get(&server.app_id)
-                        .expect("Missing server date !"),
-                );
-                server
-                    .snapshot
-                    .messages
-                    .insert(server.app_id.clone(), server.sent_messages.clone());
             }
         }
     }
