@@ -287,7 +287,7 @@ pub fn run(
                 server.sent_messages.push(msg.clone());
             }
             Event::GetClock => {
-                send_to_app(AppEvent::Clock(server.clock.clone()), &app_tx);
+                send_to_app(AppEvent::DisplayClock(server.clock.clone()), &app_tx);
             }
             Event::Shutdown => {
                 let msg_id: MsgId = rng.gen();

@@ -196,7 +196,7 @@ pub fn run(
                 }
                 _ => {}
             },
-            Event::Clock(clock) => {
+            Event::DisplayClock(clock) => {
                 for (id, date) in clock.0 {
                     app.messages
                         .push(System(format!("App {} date: {}", id, date)));

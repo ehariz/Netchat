@@ -19,7 +19,7 @@ pub enum Event {
     /// Periodically send tick a to refresh the UI
     Tick,
     /// Clock for display
-    Clock(Clock),
+    DisplayClock(Clock),
 }
 
 /// A small event handler that wrap termion input and tick events. Each event
