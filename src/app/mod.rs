@@ -23,7 +23,7 @@ pub mod events;
 use events::{Event, Events};
 
 use crate::server::events::Event as ServerEvent;
-use crate::server::messages::Header::*;
+use crate::server::messages::Header::{Private, Public};
 
 pub type AppId = String;
 
@@ -68,6 +68,12 @@ impl Default for App {
     }
 }
 
+pub fn send_to_server(msg: ServerEvent, server_tx: &mpsc::Sender<ServerEvent>) {
+    server_tx
+        .send(msg)
+        .expect("Could not send message to the server");
+}
+
 pub fn run(
     mut app: App,
     server_rx: mpsc::Receiver<Event>,
@@ -83,11 +89,11 @@ pub fn run(
     let events = Events::new(server_rx);
 
     let mut last_private_id = "You".to_owned();
-    server_tx
-        .send(ServerEvent::UserPublicMessage(
-            "joined the chat".to_string(),
-        ))
-        .expect("failed to send message to the server");
+
+    send_to_server(
+        ServerEvent::UserPublicMessage("joined the chat".to_string()),
+        &server_tx,
+    );
 
     let mut msg_list_size: usize = 0;
 
@@ -99,9 +105,9 @@ pub fn run(
                 .margin(2)
                 .constraints([Constraint::Length(3), Constraint::Min(1)].as_ref())
                 .split(f.size());
-            
+
             msg_list_size = chunks[1].inner(1).height.into();
-            
+
             Paragraph::new([Text::raw(&app.input)].iter())
                 .style(Style::default().fg(Color::Cyan))
                 .block(Block::default().borders(Borders::ALL).title("Input"))
@@ -132,19 +138,16 @@ pub fn run(
                     break;
                 }
                 Key::Ctrl('h') => {
-                    server_tx
-                        .send(ServerEvent::GetClock)
-                        .expect("failed to send message to the server");
+                    send_to_server(ServerEvent::GetClock, &server_tx);
                 }
                 Key::Ctrl('s') => {
-                    server_tx
-                        .send(ServerEvent::GetSnapshot)
-                        .expect("failed to send message to the server");
+                    send_to_server(ServerEvent::GetSnapshot, &server_tx);
                 }
                 Key::Char('\n') => {
-                    server_tx
-                        .send(ServerEvent::UserPublicMessage(app.input.clone()))
-                        .expect("failed to send message to the server");
+                    send_to_server(
+                        ServerEvent::UserPublicMessage(app.input.clone()),
+                        &server_tx,
+                    );
                     let message: String = app.input.drain(..).collect();
                     app.messages.push(User(format!("You: {}", message)));
                 }
@@ -157,12 +160,10 @@ pub fn run(
                     )));
                 }
                 Key::Ctrl('p') => {
-                    server_tx
-                        .send(ServerEvent::UserPrivateMessage(
-                            last_private_id.clone(),
-                            app.input.clone(),
-                        ))
-                        .expect("failed to send message to the server");
+                    send_to_server(
+                        ServerEvent::UserPrivateMessage(last_private_id.clone(), app.input.clone()),
+                        &server_tx,
+                    );
                     let message: String = app.input.drain(..).collect();
                     app.messages
                         .push(User(format!("You to {}: {}", last_private_id, message)));
@@ -175,11 +176,14 @@ pub fn run(
                 }
                 Key::Up => {
                     app.first_display_message_id = app.first_display_message_id.saturating_sub(1);
-                    eprintln!("{}", app.first_display_message_id);
-                },
+                }
                 Key::Down => {
-                    app.first_display_message_id = app.messages.len().saturating_sub(msg_list_size).min(app.first_display_message_id + 1);
-                },
+                    app.first_display_message_id = app
+                        .messages
+                        .len()
+                        .saturating_sub(msg_list_size)
+                        .min(app.first_display_message_id + 1);
+                }
                 _ => {}
             },
             // Input from a distant app
@@ -192,8 +196,7 @@ pub fn run(
                     app.messages
                         .push(User(format!("{} to You: {}", msg.sender_id, content)));
                 }
-                SnapshotRequest(_) => {},
-                SnapshotResponse(_,_) => {},
+                _ => {}
             },
             Event::Clock(clock) => {
                 for (id, date) in clock.0 {
@@ -208,9 +211,7 @@ pub fn run(
         }
     }
 
-    server_tx
-        .send(ServerEvent::Shutdown)
-        .expect("failed to send message to the server");
+    send_to_server(ServerEvent::Shutdown, &server_tx);
 
     Ok(())
 }
