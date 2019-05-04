@@ -1,5 +1,4 @@
 use std::io::{self, Write};
-use std::iter;
 use std::sync::mpsc;
 
 use unicode_width::UnicodeWidthStr;
@@ -57,9 +56,8 @@ impl Default for App {
     fn default() -> App {
         let mut rng = thread_rng();
         App {
-            id: iter::repeat(())
-                .map(|()| rng.sample(Alphanumeric))
-                .take(8)
+            id: (0..8)
+                .map(|_| rng.sample(Alphanumeric))
                 .collect(),
             input: String::new(),
             messages: Vec::new(),
