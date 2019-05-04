@@ -19,6 +19,8 @@ pub enum Event {
     GetClock,
     /// Request snapshot from other apps
     GetSnapshot,
+    /// The wait for the snapshot lasted enough
+    SnapshotTimeout,
 }
 
 /// A small event handler that wrap termion input and tick events. Each event
@@ -30,7 +32,11 @@ pub struct Events {
 }
 
 impl Events {
-    pub fn new(input_file_path: PathBuf, app_rx: mpsc::Receiver<Event>) -> Events {
+    pub fn new(
+        input_file_path: PathBuf,
+        app_rx: mpsc::Receiver<Event>,
+        server_rx: mpsc::Receiver<Event>,
+    ) -> Events {
         let (tx, rx) = mpsc::channel();
 
         // listen to the app for user commands
@@ -59,6 +65,17 @@ impl Events {
                     ))
                     .unwrap();
                 })
+            })
+        };
+
+        // listen to server events to allow to speak to itself asynchronously
+        let _server_handle = {
+            let tx = tx.clone();
+            thread::spawn(move || loop {
+                if let Ok(event) = server_rx.recv() {
+                    // Forward server events
+                    tx.send(event).unwrap();
+                }
             })
         };
 

@@ -5,6 +5,8 @@ use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -171,10 +173,12 @@ pub fn run(
     input_file_path: PathBuf,
     output_file_path: PathBuf,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Order matter !
+    // Channel to asynchronously speak to itself
+    let (self_tx, server_rx) = mpsc::channel();
 
+    // Order matter !
     // 1 Setup event handlers
-    let events = Events::new(input_file_path.to_owned(), app_rx);
+    let events = Events::new(input_file_path.to_owned(), app_rx, server_rx);
 
     // 2 Open the output pipe,
     // the program will freeze until there is someone at the other end
@@ -197,11 +201,13 @@ pub fn run(
     );
     server.send_message(&msg, &mut output_file, &app_tx);
 
+    let mut is_waiting_for_snapshot = false;
+
     loop {
         // Handle events
         match events.next()? {
-            // User commands
-            //--------------
+            // User / Server commands
+            //-----------------------
             Event::UserPublicMessage(message) => {
                 let msg_id: MsgId = rng.gen();
                 server.sent_messages_ids.insert(msg_id.clone());
@@ -245,6 +251,8 @@ pub fn run(
                 break;
             }
             Event::GetSnapshot => {
+                is_waiting_for_snapshot = true;
+
                 let msg_id: MsgId = rng.gen();
                 server.sent_messages_ids.insert(msg_id.clone());
                 server.increment_clock();
@@ -256,6 +264,14 @@ pub fn run(
                 );
                 server.send_message(&msg, &mut output_file, &app_tx);
                 server.sent_messages.push(msg.clone());
+
+                // Set up timeout
+                let self_tx = self_tx.clone();
+                thread::spawn(move || {
+                    thread::sleep(Duration::from_secs(5));
+                    self_tx.send(Event::SnapshotTimeout).unwrap();
+                });
+
                 // Adding local messages and clock to snapshot
                 server.snapshot.dates.insert(
                     server.app_id.clone(),
@@ -264,10 +280,40 @@ pub fn run(
                         .get(&server.app_id)
                         .expect("Missing server date !"),
                 );
+
                 server
                     .snapshot
                     .messages
                     .insert(server.app_id.clone(), server.sent_messages.clone());
+            }
+            Event::SnapshotTimeout => {
+                if is_waiting_for_snapshot {
+                    is_waiting_for_snapshot = false;
+                    // Writing snapshot to file
+                    let mut snapshot_file = OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .truncate(true)
+                        .open("snapshot.json")
+                        .expect("Failed to create snapshot file");
+
+                    if let Ok(snapshot_str) = server.snapshot.to_string_pretty() {
+                        snapshot_file
+                            .write_all(format!("{}\n", snapshot_str).as_bytes())
+                            .expect("Failed to write to output file");
+                        log::info!("Snapshot saved to file, local date: {}", server.get_date());
+                    } else {
+                        log::error!("Could not stringify snapshot");
+                    }
+
+                    send_to_app(
+                        AppEvent::ServerMessage("Snapshot saved".to_owned()),
+                        &app_tx,
+                    );
+
+                    // emptying local snapshot save
+                    server.snapshot = Snapshot::new(server.app_id.clone());
+                }
             }
             // Input from a distant app
             //-------------------------
@@ -312,39 +358,14 @@ pub fn run(
                             SnapshotResponse(app_id, _) if *app_id == server.app_id => {
                                 server.snapshot.add(msg);
 
-                                // Writing snapshot to file
-                                let mut snapshot_file = OpenOptions::new()
-                                    .write(true)
-                                    .create(true)
-                                    .truncate(true)
-                                    .open("snapshot.json")
-                                    .expect("Failed to create snapshot file");
-
-                                if let Ok(snapshot_str) = server.snapshot.to_string_pretty() {
-                                    snapshot_file
-                                        .write_all(format!("{}\n", snapshot_str).as_bytes())
-                                        .expect("Failed to write to output file");
-                                    log::info!(
-                                        "Snapshot saved to file, local date: {}",
-                                        server.get_date()
-                                    );
-                                } else {
-                                    log::error!("Could not serialize snapshot");
-                                }
-
                                 if server.snapshot.dates.len() == server.clock.len() {
-                                    // we have received a snapshot from every App instance we know of
+                                    // we have received a snapshot from every site we know of
                                     // works because the server's clock has already been updated
 
                                     // Doesn't work if there are disconnected sites
+                                    // hence the timeout
 
-                                    //emptying local snapshot save
-                                    server.snapshot = Snapshot::new(server.app_id.clone());
-
-                                    send_to_app(
-                                        AppEvent::ServerMessage("Snapshot saved".to_owned()),
-                                        &app_tx,
-                                    );
+                                    self_tx.send(Event::SnapshotTimeout).unwrap();
                                 }
                             }
                             _ => {}
