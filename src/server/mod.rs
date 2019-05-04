@@ -186,6 +186,17 @@ pub fn run(
 
     let mut rng = thread_rng();
 
+    let msg_id: MsgId = rng.gen();
+    server.sent_messages_ids.insert(msg_id.clone());
+    server.increment_clock();
+    let msg = Msg::new(
+        msg_id,
+        server.app_id.clone(),
+        Connection,
+        server.clock.clone(),
+    );
+    server.send_message(&msg, &mut output_file, &app_tx);
+
     loop {
         // Handle events
         match events.next()? {
@@ -196,6 +207,7 @@ pub fn run(
                     if server.sent_messages_ids.insert(msg.id.clone()) {
                         server.increment_clock();
                         server.receive_message(&mut msg, &mut output_file, &app_tx);
+
                         match &msg.header {
                             Public(_) => {
                                 send_to_app(AppEvent::DistantMessage(msg), &app_tx);
@@ -203,7 +215,18 @@ pub fn run(
                             Private(app_id, _) if *app_id == server.app_id => {
                                 send_to_app(AppEvent::DistantMessage(msg), &app_tx);
                             }
-                            Private(_, _) => {}
+                            Connection => {
+                                send_to_app(
+                                    AppEvent::ServerMessage(format!("{} joined", msg.sender_id)),
+                                    &app_tx,
+                                );
+                            }
+                            Disconnection => {
+                                send_to_app(
+                                    AppEvent::ServerMessage(format!("{} left", msg.sender_id)),
+                                    &app_tx,
+                                );
+                            }
                             SnapshotRequest(app_id) => {
                                 let msg_id: MsgId = rng.gen();
                                 server.sent_messages_ids.insert(msg_id.clone());
@@ -248,9 +271,10 @@ pub fn run(
                                     //emptying local snapshot save
                                     server.snapshot = Snapshot::new(server.app_id.clone());
 
-                                    app_tx
-                                        .send(AppEvent::ServerMessage("Snapshot saved".to_owned()))
-                                        .unwrap();
+                                    send_to_app(
+                                        AppEvent::ServerMessage("Snapshot saved".to_owned()),
+                                        &app_tx,
+                                    );
                                 }
                             }
                             _ => {}
@@ -271,7 +295,7 @@ pub fn run(
                     server.clock.clone(),
                 );
                 server.send_message(&msg, &mut output_file, &app_tx);
-                server.sent_messages.push(msg.clone());
+                server.sent_messages.push(msg);
             }
             Event::UserPrivateMessage(app_id, message) => {
                 let msg_id: MsgId = rng.gen();
@@ -284,7 +308,7 @@ pub fn run(
                     server.clock.clone(),
                 );
                 server.send_message(&msg, &mut output_file, &app_tx);
-                server.sent_messages.push(msg.clone());
+                server.sent_messages.push(msg);
             }
             Event::GetClock => {
                 send_to_app(AppEvent::DisplayClock(server.clock.clone()), &app_tx);
@@ -296,7 +320,7 @@ pub fn run(
                 let msg = Msg::new(
                     msg_id,
                     server.app_id.clone(),
-                    Public("left the chat".to_owned()),
+                    Disconnection,
                     server.clock.clone(),
                 );
                 server.send_message(&msg, &mut output_file, &app_tx);

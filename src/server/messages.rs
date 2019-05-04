@@ -11,6 +11,8 @@ pub type Date = u64;
 pub enum Header {
     Private(AppId, String),
     Public(String),
+    Connection,
+    Disconnection,
     SnapshotRequest(AppId), // AppId use to identify snapshot requester
     SnapshotResponse(AppId, Vec<Msg>),
 }

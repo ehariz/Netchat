@@ -21,7 +21,7 @@ use app::App;
 /// Enter  -> sends the content of the input field to everyone
 ///
 /// Ctrl+c -> exit
-/// 
+///
 /// Ctrl+s -> get a snapshot containing every messages sent by every site
 ///
 /// Ctrl+r -> set the private message recipient id to the content of the input field  

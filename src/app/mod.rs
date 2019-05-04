@@ -56,9 +56,7 @@ impl Default for App {
     fn default() -> App {
         let mut rng = thread_rng();
         App {
-            id: (0..8)
-                .map(|_| rng.sample(Alphanumeric))
-                .collect(),
+            id: (0..8).map(|_| rng.sample(Alphanumeric)).collect(),
             input: String::new(),
             messages: Vec::new(),
             first_display_message_id: 0,
@@ -86,12 +84,7 @@ pub fn run(
 
     let events = Events::new(server_rx);
 
-    let mut last_private_id = "You".to_owned();
-
-    send_to_server(
-        ServerEvent::UserPublicMessage("joined the chat".to_string()),
-        &server_tx,
-    );
+    let mut last_private_id = "no one".to_owned();
 
     let mut msg_list_size: usize = 0;
 
@@ -203,7 +196,7 @@ pub fn run(
                 }
             }
             Event::ServerMessage(string) => {
-                app.messages.push(System(format!("Sever: {}", string)));
+                app.messages.push(System(format!("Server: {}", string)));
             }
             Event::Tick => {}
         }
