@@ -28,8 +28,12 @@ pub struct Clock(pub HashMap<AppId, Date>);
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct Snapshot {
+    local_id: AppId,
     pub dates: Clock,
     messages: HashMap<AppId, Vec<Msg>>,
+
+    #[serde(skip_serializing)]
+    msg_history: Vec<Msg>,
 }
 
 pub struct Server {
@@ -37,7 +41,7 @@ pub struct Server {
     clock: Clock,
     sent_messages_ids: HashSet<MsgId>,
     snapshot: Snapshot,
-    sent_messages: Vec<Msg>,
+    saved_messages: Vec<Msg>, //Saved messages for Snapshot
 }
 
 impl Clock {
@@ -63,8 +67,10 @@ impl Clock {
 impl Snapshot {
     pub fn new(app_id: AppId) -> Self {
         Snapshot {
+            local_id : app_id.to_owned(),
             dates: Clock::new(app_id),
             messages: HashMap::new(),
+            msg_history: Vec::new(),
         }
     }
     pub fn add(&mut self, msg: Msg) {
@@ -77,31 +83,106 @@ impl Snapshot {
                     .to_owned(),
             );
             if let messages::Header::SnapshotResponse(_, messages) = msg.header {
-                let mut consistent_msgs = Vec::new();
-                for m in messages {
-                    // We ensure snapshot consistency by removing messages created
-                    // after snapshot sending date
-                    let sender_date = m
-                        .clock
-                        .get(&m.sender_id)
-                        .expect("Inconsistent message : missing sender date in vector clock");
-                    if sender_date
-                        <= self
-                            .dates
-                            .entry(m.sender_id.to_owned())
-                            .or_insert_with(|| sender_date.to_owned())
-                    {
-                        consistent_msgs.push(m.to_owned());
-                    }
-                }
-                self.messages.insert(msg.sender_id, consistent_msgs);
+                self.messages.insert(msg.sender_id, messages);
             }
         } else {
             log::error!("received snapshot twice from the same App");
         }
     }
-    pub fn to_string_pretty(&self) -> serde_json::Result<String> {
-        serde_json::to_string_pretty(self)
+    pub fn dump(&mut self, saving_date: Date){
+        let mut unique_messages = HashSet::new();
+        for(id, messages) in self.messages.to_owned() {
+            let mut consistent_msgs = Vec::new();
+            let local_sender_date = self
+                                    .dates
+                                    .get(&id)
+                                    .expect("Found messages without snapshot sending date");
+            for m in messages {
+                // We ensure snapshot consistency by removing messages created
+                // after snapshot sending date
+                let sender_date = m
+                    .clock
+                    .get(&id)
+                    .expect("Inconsistent message : missing sender date in vector clock");
+                if sender_date <= local_sender_date
+                {
+                    consistent_msgs.push(m.to_owned());
+                }
+            }
+            self.messages.insert(id, consistent_msgs.clone());
+            for m in consistent_msgs.to_owned(){
+                if !(unique_messages.contains(&m.id)){
+                    unique_messages.insert(m.id);
+                    self.msg_history.push(m);
+                }
+            }
+        }
+        let self_id = self.local_id.clone();
+        self.msg_history.sort_by(|a,b| {
+            // First, we sort by local date (date of the snapshot requester)
+            if a.clock.get(&self_id).unwrap() == b.clock.get(&self_id).unwrap(){
+                if b.clock.contains_key(&a.sender_id) && 
+                    a.clock.get(&a.sender_id).unwrap() != b.clock.get(&a.sender_id).unwrap(){
+                        // Then if possible we sort by date of app a
+                        a.clock.get(&a.sender_id).unwrap().cmp(b.clock.get(&a.sender_id).unwrap())
+                }
+                else if a.clock.contains_key(&b.sender_id){
+                    // Else if possible by date of app b
+                    a.clock.get(&b.sender_id).unwrap().cmp(&b.clock.get(&b.sender_id).unwrap())
+                }
+                else{
+                    // Otherwise the two messages have the same date
+                    a.clock.get(&self_id).unwrap().cmp(&b.clock.get(&self_id).unwrap())
+                }
+            }
+            else {
+                a.clock.get(&self_id).unwrap().cmp(&b.clock.get(&self_id).unwrap())
+            }
+        });
+
+        // Saving snapshot to file
+        let mut snapshot_file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open("snapshot.json")
+            .expect("Failed to create snapshot file");
+
+        if let Ok(snapshot_str) = serde_json::to_string_pretty(self) {
+            snapshot_file
+                .write_all(format!("{}\n", snapshot_str).as_bytes())
+                .expect("Failed to write to output file");
+            log::info!(
+                "Snapshot saved to file, local date: {}",
+                saving_date
+            );
+        } else {
+            log::error!("Could not serialize snapshot");
+        }
+
+        //Saving message history to file
+        let mut history_file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open("history.json")
+            .expect("Failed to create history file");
+
+        if let Ok(history_str) = serde_json::to_string_pretty(&self.msg_history) {
+            history_file
+                .write_all(format!("{}\n", history_str).as_bytes())
+                .expect("Failed to write to output file");
+            log::info!(
+                "Message history saved to file, local date: {}",
+                saving_date
+            );
+        } else {
+            log::error!("Could not serialize snapshot");
+        }
+
+        // Erasing local snapshot data
+        self.messages = HashMap::new();
+        self.msg_history = Vec::new();
     }
 }
 
@@ -112,7 +193,7 @@ impl Server {
             clock: Clock::new(app_id.clone()),
             sent_messages_ids: HashSet::new(),
             snapshot: Snapshot::new(app_id),
-            sent_messages: Vec::new(),
+            saved_messages: Vec::new(),
         }
     }
 
@@ -219,7 +300,7 @@ pub fn run(
                     server.clock.clone(),
                 );
                 server.send_message(&msg, &mut output_file, &app_tx);
-                server.sent_messages.push(msg);
+                server.saved_messages.push(msg);
             }
             Event::UserPrivateMessage(app_id, message) => {
                 let msg_id: MsgId = rng.gen();
@@ -232,7 +313,7 @@ pub fn run(
                     server.clock.clone(),
                 );
                 server.send_message(&msg, &mut output_file, &app_tx);
-                server.sent_messages.push(msg);
+                server.saved_messages.push(msg);
             }
             Event::GetClock => {
                 send_to_app(AppEvent::DisplayClock(server.clock.clone()), &app_tx);
@@ -263,7 +344,7 @@ pub fn run(
                     server.clock.clone(),
                 );
                 server.send_message(&msg, &mut output_file, &app_tx);
-                server.sent_messages.push(msg.clone());
+                server.saved_messages.push(msg.clone());
 
                 // Set up timeout
                 let self_tx = self_tx.clone();
@@ -284,27 +365,13 @@ pub fn run(
                 server
                     .snapshot
                     .messages
-                    .insert(server.app_id.clone(), server.sent_messages.clone());
+                    .insert(server.app_id.clone(), server.saved_messages.clone());
             }
             Event::SnapshotTimeout => {
                 if is_waiting_for_snapshot {
                     is_waiting_for_snapshot = false;
                     // Writing snapshot to file
-                    let mut snapshot_file = OpenOptions::new()
-                        .write(true)
-                        .create(true)
-                        .truncate(true)
-                        .open("snapshot.json")
-                        .expect("Failed to create snapshot file");
-
-                    if let Ok(snapshot_str) = server.snapshot.to_string_pretty() {
-                        snapshot_file
-                            .write_all(format!("{}\n", snapshot_str).as_bytes())
-                            .expect("Failed to write to output file");
-                        log::info!("Snapshot saved to file, local date: {}", server.get_date());
-                    } else {
-                        log::error!("Could not stringify snapshot");
-                    }
+                    server.snapshot.dump(server.get_date());
 
                     send_to_app(
                         AppEvent::ServerMessage("Snapshot saved".to_owned()),
@@ -329,7 +396,8 @@ pub fn run(
                                 send_to_app(AppEvent::DistantMessage(msg), &app_tx);
                             }
                             Private(app_id, _) if *app_id == server.app_id => {
-                                send_to_app(AppEvent::DistantMessage(msg), &app_tx);
+                                send_to_app(AppEvent::DistantMessage(msg.to_owned()), &app_tx);
+                                server.saved_messages.push(msg.clone());
                             }
                             Connection => {
                                 send_to_app(
@@ -350,7 +418,7 @@ pub fn run(
                                 let msg = Msg::new(
                                     msg_id,
                                     server.app_id.clone(),
-                                    SnapshotResponse(app_id.clone(), server.sent_messages.clone()),
+                                    SnapshotResponse(app_id.clone(), server.saved_messages.clone()),
                                     server.clock.clone(),
                                 );
                                 server.send_message(&msg, &mut output_file, &app_tx);
