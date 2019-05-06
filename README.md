@@ -39,7 +39,7 @@ cargo run -- --help
 * `Enter` sends the content of the input field to everyone
 * `Ctrl+c` exit
 * `Ctrl+s` get a snapshot containing every messages sent by every site
-* `Ctrl+r` set the private message recipient id to the content of the input field
+* `Ctrl+r` set the private message recipient id to the content of the input field or, if let empty, to the id which sent the last private message
 * `Ctrl+p` sends the content of the input field to the current private recipient
 * `Up` scroll messages up
 * `Down` scroll messages down

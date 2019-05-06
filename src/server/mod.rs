@@ -67,7 +67,7 @@ impl Clock {
 impl Snapshot {
     pub fn new(app_id: AppId) -> Self {
         Snapshot {
-            local_id : app_id.to_owned(),
+            local_id: app_id.to_owned(),
             dates: Clock::new(app_id),
             messages: HashMap::new(),
             msg_history: Vec::new(),
@@ -89,14 +89,14 @@ impl Snapshot {
             log::error!("received snapshot twice from the same App");
         }
     }
-    pub fn dump(&mut self, saving_date: Date){
+    pub fn dump(&mut self, saving_date: Date) {
         let mut unique_messages = HashSet::new();
-        for(id, messages) in self.messages.to_owned() {
+        for (id, messages) in self.messages.to_owned() {
             let mut consistent_msgs = Vec::new();
             let local_sender_date = self
-                                    .dates
-                                    .get(&id)
-                                    .expect("Found messages without snapshot sending date");
+                .dates
+                .get(&id)
+                .expect("Found messages without snapshot sending date");
             for m in messages {
                 // We ensure snapshot consistency by removing messages created
                 // after snapshot sending date
@@ -104,39 +104,48 @@ impl Snapshot {
                     .clock
                     .get(&id)
                     .expect("Inconsistent message : missing sender date in vector clock");
-                if sender_date <= local_sender_date
-                {
+                if sender_date <= local_sender_date {
                     consistent_msgs.push(m.to_owned());
                 }
             }
             self.messages.insert(id, consistent_msgs.clone());
-            for m in consistent_msgs.to_owned(){
-                if !(unique_messages.contains(&m.id)){
+            for m in consistent_msgs.to_owned() {
+                if !(unique_messages.contains(&m.id)) {
                     unique_messages.insert(m.id);
                     self.msg_history.push(m);
                 }
             }
         }
         let self_id = self.local_id.clone();
-        self.msg_history.sort_by(|a,b| {
+        self.msg_history.sort_by(|a, b| {
             // First, we sort by local date (date of the snapshot requester)
-            if a.clock.get(&self_id).unwrap() == b.clock.get(&self_id).unwrap(){
-                if b.clock.contains_key(&a.sender_id) && 
-                    a.clock.get(&a.sender_id).unwrap() != b.clock.get(&a.sender_id).unwrap(){
-                        // Then if possible we sort by date of app a
-                        a.clock.get(&a.sender_id).unwrap().cmp(b.clock.get(&a.sender_id).unwrap())
-                }
-                else if a.clock.contains_key(&b.sender_id){
+            if a.clock.get(&self_id).unwrap() == b.clock.get(&self_id).unwrap() {
+                if b.clock.contains_key(&a.sender_id)
+                    && a.clock.get(&a.sender_id).unwrap() != b.clock.get(&a.sender_id).unwrap()
+                {
+                    // Then if possible we sort by date of app a
+                    a.clock
+                        .get(&a.sender_id)
+                        .unwrap()
+                        .cmp(b.clock.get(&a.sender_id).unwrap())
+                } else if a.clock.contains_key(&b.sender_id) {
                     // Else if possible by date of app b
-                    a.clock.get(&b.sender_id).unwrap().cmp(&b.clock.get(&b.sender_id).unwrap())
-                }
-                else{
+                    a.clock
+                        .get(&b.sender_id)
+                        .unwrap()
+                        .cmp(&b.clock.get(&b.sender_id).unwrap())
+                } else {
                     // Otherwise the two messages have the same date
-                    a.clock.get(&self_id).unwrap().cmp(&b.clock.get(&self_id).unwrap())
+                    a.clock
+                        .get(&self_id)
+                        .unwrap()
+                        .cmp(&b.clock.get(&self_id).unwrap())
                 }
-            }
-            else {
-                a.clock.get(&self_id).unwrap().cmp(&b.clock.get(&self_id).unwrap())
+            } else {
+                a.clock
+                    .get(&self_id)
+                    .unwrap()
+                    .cmp(&b.clock.get(&self_id).unwrap())
             }
         });
 
@@ -152,10 +161,7 @@ impl Snapshot {
             snapshot_file
                 .write_all(format!("{}\n", snapshot_str).as_bytes())
                 .expect("Failed to write to output file");
-            log::info!(
-                "Snapshot saved to file, local date: {}",
-                saving_date
-            );
+            log::info!("Snapshot saved to file, local date: {}", saving_date);
         } else {
             log::error!("Could not serialize snapshot");
         }
@@ -172,10 +178,7 @@ impl Snapshot {
             history_file
                 .write_all(format!("{}\n", history_str).as_bytes())
                 .expect("Failed to write to output file");
-            log::info!(
-                "Message history saved to file, local date: {}",
-                saving_date
-            );
+            log::info!("Message history saved to file, local date: {}", saving_date);
         } else {
             log::error!("Could not serialize snapshot");
         }
@@ -396,8 +399,8 @@ pub fn run(
                                 send_to_app(AppEvent::DistantMessage(msg), &app_tx);
                             }
                             Private(app_id, _) if *app_id == server.app_id => {
-                                send_to_app(AppEvent::DistantMessage(msg.to_owned()), &app_tx);
-                                server.saved_messages.push(msg.clone());
+                                send_to_app(AppEvent::DistantMessage(msg.clone()), &app_tx);
+                                server.saved_messages.push(msg);
                             }
                             Connection => {
                                 send_to_app(

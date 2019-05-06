@@ -49,7 +49,10 @@ pub struct App {
     pub messages: Vec<Message>,
     /// Current value of the input box
     input: String,
+    /// Id of the first message to be displayed, used for scrolling
     first_display_message_id: usize,
+    /// Id of the private message recipient
+    private_recipient_id: AppId,
 }
 
 impl Default for App {
@@ -60,6 +63,7 @@ impl Default for App {
             input: String::new(),
             messages: Vec::new(),
             first_display_message_id: 0,
+            private_recipient_id: "no one".to_owned(),
         }
     }
 }
@@ -174,20 +178,30 @@ pub fn run(
                 }
                 // set the recipient id for private messages
                 Key::Ctrl('r') => {
-                    last_private_id = app.input.drain(..).collect();
+                    let private_recipient_id: String = app.input.drain(..).collect();
+                    if private_recipient_id.len() > 0 {
+                        app.private_recipient_id = private_recipient_id;
+                    } else {
+                        app.private_recipient_id = last_private_id.clone();
+                    }
                     app.messages.push(System(format!(
                         "Private recipient id set to: {}",
-                        last_private_id
+                        app.private_recipient_id
                     )));
                 }
                 Key::Ctrl('p') => {
                     send_to_server(
-                        ServerEvent::UserPrivateMessage(last_private_id.clone(), app.input.clone()),
+                        ServerEvent::UserPrivateMessage(
+                            app.private_recipient_id.clone(),
+                            app.input.clone(),
+                        ),
                         &server_tx,
                     );
                     let message: String = app.input.drain(..).collect();
-                    app.messages
-                        .push(User(format!("You to {}: {}", last_private_id, message)));
+                    app.messages.push(User(format!(
+                        "You to {}: {}",
+                        app.private_recipient_id, message
+                    )));
                 }
                 Key::Char(c) => {
                     app.input.push(c);
@@ -216,6 +230,7 @@ pub fn run(
                 Private(_, content) => {
                     app.messages
                         .push(User(format!("{} to You: {}", msg.sender_id, content)));
+                    last_private_id = msg.sender_id;
                 }
                 _ => {}
             },
