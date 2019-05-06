@@ -202,7 +202,7 @@ User   Server            Distant input   App   Server
 
 ### Cross site messages
 
-(serde)[https://github.com/serde-rs/serde] is used to serialize and deserialize Rust object to and from strings, the strings are then sent through the pipes for others to read.
+[serde](https://github.com/serde-rs/serde) is used to serialize and deserialize Rust object to and from strings, the strings are then sent through the pipes for others to read.
 
 Message are serialized to json in order to be human readable, for a production application, we would use a less verbose format (switching is transparent thanks to serde).
 
@@ -216,7 +216,7 @@ The interface is built using [tui-rs](https://github.com/fdehau/tui-rs) with a [
 
 Snapshots are built when requested by a user. The app will then generate two files :
 * snapshot.json : a complete snapshot of the network made of every app currently running
-* history.json : an history of every sent message, in (roughly) chronolgical order
+* history.json : an history of every sent message, in a (roughly) chronolgical order
 
 ## Topology-agnostic protocol
 
