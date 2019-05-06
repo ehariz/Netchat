@@ -12,17 +12,17 @@ use crate::server::Clock;
 pub enum Event {
     /// User input (keypress)
     UserInput(Key),
-    /// Input from a distant agent (write in a file)
+    /// Message from another app (write in a file)
     DistantMessage(Msg),
     /// Information from the server
     ServerMessage(String),
     /// Periodically send tick a to refresh the UI
     Tick,
-    /// Clock for display
+    /// Display vector clock
     DisplayClock(Clock),
 }
 
-/// A small event handler that wrap termion input and tick events. Each event
+/// A small event handler that wraps termion input and tick events. Each event
 /// type is handled in its own thread and returned to a common `Receiver`
 pub struct Events {
     rx: mpsc::Receiver<Event>,

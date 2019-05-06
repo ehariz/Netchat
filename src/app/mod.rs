@@ -41,11 +41,11 @@ impl Message {
     }
 }
 
-/// App holds the state of the application
+/// Holds the state of the application
 pub struct App {
     //Application id
     pub id: AppId,
-    /// History of recorded messages
+    /// History of received/sent messages
     pub messages: Vec<Message>,
     /// Current value of the input box
     input: String,

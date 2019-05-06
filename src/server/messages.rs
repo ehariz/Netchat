@@ -7,13 +7,14 @@ pub type MsgId = u64;
 pub type Date = u64;
 
 /// Header(Content)
+/// Defines message type
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum Header {
     Private(AppId, String),
     Public(String),
     Connection,
     Disconnection,
-    SnapshotRequest(AppId), // AppId use to identify snapshot requester
+    SnapshotRequest(AppId), // AppId used to identify snapshot requester
     SnapshotResponse(AppId, Vec<Msg>),
 }
 

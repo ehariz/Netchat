@@ -1,5 +1,4 @@
 use std::fs::File;
-// BufRead : WHY ????
 use crate::app::AppId;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
@@ -9,17 +8,19 @@ use std::thread;
 pub enum Event {
     /// User public message
     UserPublicMessage(String),
-    /// User public message
+    /// User private message
     UserPrivateMessage(AppId, String),
-    /// Input from a distant agent (write in a file)
+    /// Message from another app (write in a file)
     DistantInput(String),
     /// Shutdown the server
     Shutdown,
-    /// Get Clock
+    /// Clock request from the user
     GetClock,
-    /// Request snapshot from other apps
+    /// Snapshot request from the user
     GetSnapshot,
-    /// The wait for the snapshot lasted enough
+    /// Timer used for snapshot building. When finished, 
+    /// the server stops waiting for Snapshots from other apps,
+    /// and writes the snapshot to file
     SnapshotTimeout,
 }
 

@@ -41,9 +41,10 @@ pub struct Server {
     clock: Clock,
     sent_messages_ids: HashSet<MsgId>,
     snapshot: Snapshot,
-    saved_messages: Vec<Msg>, //Saved messages for Snapshot
+    saved_messages: Vec<Msg>, //Saved messages - will be used to build snapshot
 }
 
+// Vector Clock implementation
 impl Clock {
     fn new(app_id: AppId) -> Self {
         let mut map = HashMap::new();
@@ -54,7 +55,7 @@ impl Clock {
     fn merge(&mut self, clock: &Self) {
         for (id, date) in &clock.0 {
             match self.get(id) {
-                // Do not update the clock if it contains a more recent date
+                // Clock is updated only if it contains an older date
                 Some(local_date) if local_date >= date => {}
                 _ => {
                     self.insert(id.to_owned(), date.to_owned());
@@ -75,6 +76,7 @@ impl Snapshot {
     }
     pub fn add(&mut self, msg: Msg) {
         // We store the snapshot sending date from each app
+        // Will be used to ensure snpashot consistency
         if let Entry::Vacant(v) = self.dates.entry(msg.sender_id.to_owned()) {
             v.insert(
                 msg.clock
@@ -117,6 +119,8 @@ impl Snapshot {
             }
         }
         let self_id = self.local_id.clone();
+
+        // Sorting messages using vector clocks to build a consistent message history 
         self.msg_history.sort_by(|a, b| {
             // First, we sort by local date (date of the snapshot requester)
             if a.clock.get(&self_id).unwrap() == b.clock.get(&self_id).unwrap() {
@@ -260,7 +264,6 @@ pub fn run(
     // Channel to asynchronously speak to itself
     let (self_tx, server_rx) = mpsc::channel();
 
-    // Order matter !
     // 1 Setup event handlers
     let events = Events::new(input_file_path.to_owned(), app_rx, server_rx);
 
@@ -430,11 +433,11 @@ pub fn run(
                                 server.snapshot.add(msg);
 
                                 if server.snapshot.dates.len() == server.clock.len() {
-                                    // we have received a snapshot from every site we know of
+                                    // We have received a snapshot from every site we know of
                                     // works because the server's clock has already been updated
 
                                     // Doesn't work if there are disconnected sites
-                                    // hence the timeout
+                                    // in which case the snapshot request will timeout
 
                                     self_tx.send(Event::SnapshotTimeout).unwrap();
                                 }
