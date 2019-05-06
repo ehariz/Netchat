@@ -3,6 +3,8 @@ Netchat
 
 _A fully decentralized (thus inefficient) chat written in rust, using named pipes (fifo files) for communication._
 
+_by Mathis Chenuet, Emilien Fugier, Elias Hariz_
+
 **Two-instance communication**
 
 ```sh
@@ -73,13 +75,7 @@ cargo run -- -i a -o b
 `./launch-network.sh` automates the fifo creation and routing for 2 instances, and `./launch.py N` does the same for N instances.
 
 
-# Netchat Overview
-
-*distributed instant messaging*
-
-**Rust, Terminal Interface**
-
-_Mathis Chenuet, Emilien Fugier, Elias Hariz_
+# Need help ?
 
 ```
 netchat --help
@@ -218,9 +214,9 @@ The interface is built using [tui-rs](https://github.com/fdehau/tui-rs) with a [
 
 ## Snapshot and message history 
 
-A snapshot can be asked for, it will contain all the information available on the netwrok.
-
-The snapshot is then processed into an hsitory which is much more human-friendly.
+Snapshots are built when requested by a user. The app will then generate two files :
+* snapshot.json : a complete snapshot of the network made of every app currently running
+* history.json : an history of every sent message, in (roughly) chronolgical order
 
 ## Topology-agnostic protocol
 
