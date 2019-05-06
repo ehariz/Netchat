@@ -1,5 +1,5 @@
 [package]
-name = "project"
+name = "netchat"
 version = "0.1.0"
 authors = ["efugier <mail@emilienfugier.net>"]
 edition = "2018"
